@@ -1,2 +1,2 @@
 # gtags-code
-Navigate in vscode flawlessly with tags
+Navigate in vscode flawlessly with gnu-gtags
