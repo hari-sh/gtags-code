@@ -60,7 +60,7 @@ async function getReferences(context) {
 
   terminal.show();
   const config = vscode.workspace.getConfiguration('gtags-code');
-  const globalCmd = config.get<string>('globalCmd');
+  const globalCmd = config.get('globalCmd');
   terminal.sendText(`${globalCmd} --result=grep -xr ${tag}`);
 }
 
