@@ -2,8 +2,8 @@
   "name": "gtags-code",
   "displayName": "gtags-code",
   "icon": "icon.png",
-  "description": "",
-  "publisher": "harikalyan",
+  "description": "gtags-code is a Visual Studio Code extension that integrates GNU Global (gtags) for efficient code navigation and symbol searching within your projects.",
+  "publisher": "Hari Kalyan",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.80.0"
@@ -32,19 +32,19 @@
     "commands": [
       {
         "command": "extension.storeTags",
-        "title": "CTags: Store Tags"
+        "title": "GTags: Store Tags"
       },
       {
         "command": "extension.jumpTag",
-        "title": "CTags: Jump To Tag"
+        "title": "GTags: Jump To Tag"
       },
       {
         "command": "extension.searchTags",
-        "title": "CTags: Search Tags"
+        "title": "GTags: Search Tags"
       },
       {
         "command": "extension.getReferences",
-        "title": "CTags: Get References"
+        "title": "GTags: Get References"
       }
     ],
     "menus": {
