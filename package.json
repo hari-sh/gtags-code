@@ -1,10 +1,10 @@
 {
-  "name": "ctags-code",
-  "displayName": "ctags-code",
+  "name": "gtags-code",
+  "displayName": "gtags-code",
   "icon": "icon.png",
   "description": "",
   "publisher": "harikalyan",
-  "version": "0.0.5",
+  "version": "0.0.1",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -14,7 +14,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/hari-sh/ctags-code"
+    "url": "https://github.com/hari-sh/gtags-code"
   },
   "activationEvents": [],
   "main": "./dist/extension.js",
@@ -31,6 +31,10 @@
       {
         "command": "extension.searchTags",
         "title": "CTags: Search Tags"
+      },
+      {
+        "command": "extension.getReferences",
+        "title": "CTags: Get References"
       }
     ],
     "menus": {
@@ -39,8 +43,20 @@
           "command": "extension.jumpTag",
           "when": "editorTextFocus",
           "group": "navigation"
+        },
+        {
+          "command": "extension.getReferences",
+          "when": "editorTextFocus",
+          "group": "navigation"
         }
       ]
+    },
+    "properties": {
+      "gtags-code.globalCmd": {
+        "type": "string",
+        "default": "global",
+        "description": "Path to the custom tool executable."
+      }
     }
   },
   "scripts": {
