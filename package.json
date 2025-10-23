@@ -19,6 +19,16 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "gtags-code configuration",
+      "properties": {
+        "gtags-code.globalCmd": {
+          "type": "string",
+          "default": "global",
+          "description": "Path to the global executable"
+        }
+      }
+    },
     "commands": [
       {
         "command": "extension.storeTags",

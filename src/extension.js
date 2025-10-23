@@ -53,7 +53,7 @@ async function jump2tag(context) {
   return jumputil(editor, context, tag)
 }
 
-async function getReferences(platform) {
+async function getReferences(context) {
   const editor = vscode.window.activeTextEditor;
   const tag = getTag(editor);
   const terminal = vscode.window.createTerminal(`${tag} - References`);
@@ -71,7 +71,7 @@ module.exports = {
     context.subscriptions.push(vscode.commands.registerCommand('extension.storeTags', parseAndStoreTags));
     context.subscriptions.push(vscode.commands.registerCommand('extension.searchTags', handleSearchTagsCommand));
     context.subscriptions.push(vscode.commands.registerCommand('extension.jumpTag', jump2tag));
-    context.subscriptions.push(vscode.commands.registerCommand('extension.getReferences', () => getReferences(process.platform)));
+    context.subscriptions.push(vscode.commands.registerCommand('extension.getReferences', getReferences));
   },
   deactivate() {
     closeDB();
