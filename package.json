@@ -1,0 +1,58 @@
+{
+  "name": "ctags-code",
+  "displayName": "ctags-code",
+  "icon": "icon.png",
+  "description": "",
+  "publisher": "harikalyan",
+  "version": "0.0.5",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Language Packs"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hari-sh/ctags-code"
+  },
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.storeTags",
+        "title": "CTags: Store Tags"
+      },
+      {
+        "command": "extension.jumpTag",
+        "title": "CTags: Jump To Tag"
+      },
+      {
+        "command": "extension.searchTags",
+        "title": "CTags: Search Tags"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "extension.jumpTag",
+          "when": "editorTextFocus",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "bundle": "node build.js",
+    "vscode:prepublish": "node build.js",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "classic-level": "^3.0.0",
+    "node-gyp-build": "^4.8.4"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.5"
+  }
+}

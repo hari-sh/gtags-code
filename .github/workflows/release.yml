@@ -1,0 +1,62 @@
+name: Package and Release VSIX
+
+on:
+  push:
+    branches:
+      - '**'  # Trigger on all branches
+
+permissions:
+  contents: write  # Needed to push tags and create releases
+
+jobs:
+  release-vsix:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Set dynamic version from branch
+        id: version
+        run: |
+          BRANCH="${GITHUB_REF##*/}"
+          SAFE_BRANCH=$(echo "$BRANCH" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
+          BASE=$(node -p "require('./package.json').version.split('-')[0]")
+          VERSION="${BASE}-dev.${GITHUB_RUN_NUMBER}"
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          node -e "
+            const fs = require('fs');
+            const pkg = require('./package.json');
+            pkg.version = '$VERSION';
+            fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
+          "
+
+      - name: Create Git tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git tag "v${{ env.VERSION }}"
+          git push origin "v${{ env.VERSION }}"
+
+      - name: Package VSIX
+        run: npx @vscode/vsce package
+
+      - name: Upload VSIX to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ env.VERSION }}"
+          name: "Release ${{ env.VERSION }}"
+          files: "*.vsix"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
