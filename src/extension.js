@@ -15,7 +15,6 @@ async function parseAndStoreTags() {
   channel.appendLine('Creating Tags DataBase...');
   await storeTagsToDB(path.join(vscode.workspace.rootPath, 'tags'));
   await assignIdsToVariables();
-  vscode.window.showInformationMessage('Tags are parsed');
   channel.appendLine('Tags DataBase created successfully...');
 }
 
