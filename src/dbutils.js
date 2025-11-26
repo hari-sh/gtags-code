@@ -18,7 +18,7 @@ Module.prototype.require = function (id) {
 };
 
 const { ClassicLevel } = require('classic-level');
-const fs = require('fs');
+const fs = require('fs').promises;
 
 let db;
 const dbpath = path.join(vscode.workspace.rootPath, 'tagsdb');
@@ -43,6 +43,13 @@ function getDB() {
 function closeDB() {
   if (!db) throw new Error('DB is not initialized.');
   db.close();
+}
+
+async function cleanDB() {
+  await db.close();
+  await fs.rm(dbpath, { recursive: true, force: true });
+  await fs.mkdir(dbpath, { recursive: true });
+  await db.open();
 }
 
 async function getValueFromDb(key) {
@@ -172,6 +179,8 @@ const assignIdsToVariables = async () => {
     tokenbatch.put(`token:${token}`, Array.from(ids));
   }
   await tokenbatch.write();
+  db.close();
+  db.open();
 };
 
-module.exports = { initDB, getDB, closeDB, getValueFromDb, batchWriteIntoDB, searchQuery, assignIdsToVariables, resetSearchMap };
+module.exports = { initDB, getDB, cleanDB, closeDB, getValueFromDb, batchWriteIntoDB, searchQuery, assignIdsToVariables, resetSearchMap };
