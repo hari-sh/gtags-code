@@ -1,9 +1,13 @@
-const fs = require.promises;
+const fs = require('fs').promises;
 const fssync = require('fs');
 const path = require('path');
 const readline = require('readline');
 const {spawn} = require('child_process');
 const vscode = require('vscode');
+const {getDB, batchWriteIntoDB} = require('./dbutils');
+const config = vscode.workspace.getConfiguration('gtags-code');
+const globalCmd = config.get('globalCmd');
+const gtagsCmd = config.get('gtagsCmd');
 
 const exts = new Set(['.c', '.cpp', '.h', '.hpp', '.cc', '.hh', '.cxx', '.hxx']);
 
@@ -37,50 +41,74 @@ async function runGtags(root) {
     });
 }
 
-function runCommandAndTransform(cmd, args, cwd, outfile, transformLine) {
+async function processGtagsStream(gtagsStream) {
+    const rl = readline.createInterface({
+        input: gtagsStream,
+        crlfDelay: Infinity
+    });
+
+    const db = getDB();
+    const batchSize = 1000;
+    let batchOps = [];
+
+    for await (const line of rl) {
+        if (!line.trim()) return null;
+        const parts = line.split(/\s+/);
+        if (parts.length < 2) return null;
+        const tagName = parts[0];
+        const file = parts[2];
+        const patternStartIndex = line.indexOf(file) + file.length + 1;
+        const pattern = '^' + line.slice(patternStartIndex).trim() + '$';
+
+        batchOps.push({
+            type: 'put',
+            key: `tag:${tagName}`,
+            value: {
+                file,
+                pattern,
+                tagKind: 'f'
+            }
+        });
+
+        if (batchOps.length >= batchSize) {
+            await batchWriteIntoDB(batchOps);
+            batchOps = [];
+        }
+    }
+
+    if (batchOps.length > 0) {
+        await batchWriteIntoDB(batchOps);
+    }
+}
+
+function runCommandAndTransform(cmd, args, cwd, outfile) {
     const child = spawn(cmd, args, {cwd});
     const rl = readline.createInterface({input: child.stdout});
     const outStream = fssync.createWriteStream(path.join(cwd, outfile));
 
     rl.on('line', (line) => {
-        const transformed = transformLine(line);
+        const transformed = transformGtagsLine(line);
         if (transformed) {
             outStream.write(transformed + '\n');
         }
     });
 
-    child.on('close', (code) => {
-        outStream.end();
-        if (code !== 0) {
-            console.error(`${cmd} exited with code ${code}`);
-        }
-    });
+    child.on('close', () => outStream.end());
 }
 
-function transformGtagsLine(line) {
-    if (!line.trim()) return null;
-    const parts = line.split(/\s+/);
-    if (parts.length < 2) return null;
-    const funName = parts[0];
-    const fileName = parts[2];
-    const patternStartIndex = line.indexOf(fileName) + fileName.length + 1;
-    const pattern = line.slice(patternStartIndex).trim();
-    const enclosedPattern = `/^${pattern}$/`;
-    return `${funName}\t${fileName}\t${enclosedPattern};`;
+async function runGlobalCommand(cmd, args, cwd) {
+    const child = spawn(cmd, args, {cwd});
+    await processGtagsStream(child.stdout);
 }
 
 async function parseToTagsFile(root) {
-    return new Promise((resolve, reject) => {
-        runCommandAndTransform(
-            'gtags',
-            ['-f', '-', '-d'],
-            root,
-            'tags',
-            transformGtagsLine
+    await runGtags(root);
+    await runGlobalCommand(
+            globalCmd,
+            ['-x', '.'],
+            root        
         );
-        resolve();
-    });
-}
+    }
 
 module.exports = {
     parseToTagsFile
