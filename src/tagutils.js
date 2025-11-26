@@ -167,7 +167,7 @@ async function storeTagsToDB(tagsfile)    {
         if (line.startsWith('!')) continue;
 
         const parts = line.split('\t');
-        if (parts.length < 3) continue;
+        if (parts.length < 2) continue;
 
         const [tagName, file, pattern, tagKind] = parts;
         const matches = [...pattern.matchAll(/\/(.*?)\//g)].map(m => m[1]);

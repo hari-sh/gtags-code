@@ -5,12 +5,18 @@ const {jumputil, getTag, storeTagsToDB} = require('./tagutils');
 const {initDB, closeDB, assignIdsToVariables, searchQuery, resetSearchMap} = require('./dbutils');
 const logger = require('./logger');
 const debug = require('./debug');
+const {parseToTagsFile} = require('./gtagutils');
+const channel = vscode.window.createOutputChannel('gtags-code');
 
 async function parseAndStoreTags() {
-    await storeTagsToDB(path.join(vscode.workspace.rootPath, 'tags'));
-    await assignIdsToVariables();
-    // await debug.printdb();
-    vscode.window.showInformationMessage('Tags are parsed');
+  channel.show();
+  channel.appendLine('Running Gtags...');
+  await parseToTagsFile(vscode.workspace.rootPath);
+  channel.appendLine('Creating Tags DataBase...');
+  await storeTagsToDB(path.join(vscode.workspace.rootPath, 'tags'));
+  await assignIdsToVariables();
+  vscode.window.showInformationMessage('Tags are parsed');
+  channel.appendLine('Tags DataBase created successfully...');
 }
 
 async function handleSearchTagsCommand(context) {
@@ -68,6 +74,7 @@ module.exports = {
   activate(context) {
     logger.initLogger();
     initDB();
+    context.subscriptions.push(channel);
     context.subscriptions.push(vscode.commands.registerCommand('extension.storeTags', parseAndStoreTags));
     context.subscriptions.push(vscode.commands.registerCommand('extension.searchTags', handleSearchTagsCommand));
     context.subscriptions.push(vscode.commands.registerCommand('extension.jumpTag', jump2tag));
