@@ -45,9 +45,51 @@ function closeDB() {
   db.close();
 }
 
-async function cleanDB() {
-  await db.clear();
+async function openDB() {
+  if (!db) throw new Error('DB is not initialized.');
+  await db.open();
 }
+
+async function cleanDB() {
+    try {
+        // 1. Close DB if handle provided
+        if (db) {
+            try { await db.close(); } catch (_) {}
+        }
+
+        // 2. Fast path: try deleting entire folder
+        try {
+            await fs.rm(dbpath, { recursive: true, force: true });
+            return; // done
+        } catch (_) {
+            // fall through to selective delete
+        }
+
+        // 3. Slow path: delete inside, skip locked .log files
+        try {
+            const entries = await fs.readdir(dbpath);
+            for (const file of entries) {
+                const full = path.join(dbpath, file);
+
+                try {
+                    await fs.rm(full, { recursive: true, force: true });
+                } catch (err) {
+                    // Skip locked log files silently
+                    if (file.endsWith(".log")) {
+                        continue;
+                    }
+                    // Ignore all errors as requested
+                    continue;
+                }
+            }
+        } catch (_) {
+            // folder missing — ignore silently
+        }
+    } catch (_) {
+        // final safety blanket, ignore everything
+    }
+}
+
 
 async function getValueFromDb(key) {
   try {
@@ -180,4 +222,4 @@ const assignIdsToVariables = async () => {
   db.open();
 };
 
-module.exports = { initDB, getDB, cleanDB, closeDB, getValueFromDb, batchWriteIntoDB, searchQuery, assignIdsToVariables, resetSearchMap };
+module.exports = { initDB, getDB, openDB, cleanDB, closeDB, getValueFromDb, batchWriteIntoDB, searchQuery, assignIdsToVariables, resetSearchMap };

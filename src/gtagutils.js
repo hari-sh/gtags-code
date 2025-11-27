@@ -94,6 +94,17 @@ async function parseToTagsFile(root) {
         );
     }
 
+async function cleanGtagsFiles(root) {
+    const gtagsFiles = ['GTAGS', 'GRTAGS', 'GPATH'];
+    for (const file of gtagsFiles) {
+        const filePath = path.join(root, file);
+        if (fssync.existsSync(filePath)) {
+            await fs.rm(filePath, {force: true});
+        }
+    }
+}
+
 module.exports = {
-    parseToTagsFile
+    parseToTagsFile,
+    cleanGtagsFiles
 };
