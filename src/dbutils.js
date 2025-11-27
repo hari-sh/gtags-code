@@ -19,7 +19,6 @@ Module.prototype.require = function (id) {
 
 const { ClassicLevel } = require('classic-level');
 const fs = require('fs').promises;
-const fssync = require('fs');
 
 let db;
 const dbpath = path.join(vscode.workspace.rootPath, 'tagsdb');
@@ -47,10 +46,7 @@ function closeDB() {
 }
 
 async function cleanDB() {
-  await db.close();
-  await fs.rm(dbpath, { recursive: true, force: true });
-  await fs.mkdir(dbpath, { recursive: true });
-  await db.open();
+  await db.clear();
 }
 
 async function getValueFromDb(key) {
@@ -161,7 +157,6 @@ const assignIdsToVariables = async () => {
     alltags.push(key.slice(4));
   }
   alltags.sort((a,b) => a.length - b.length);
-  const debugfile = fssync.createWriteStream(path.join(vscode.workspace.rootPath, '.cache', 'debugfile2'));
   
   const idbatch = db.batch();
   const tokenMap = new Map();
@@ -169,7 +164,6 @@ const assignIdsToVariables = async () => {
     const varname = alltags[ind];
     const varid = ind + 1;
     idbatch.put(`id:${varid}`, varname);
-    debugfile.write(`${varid}, ${varname}\n`);
     for (const token of tokenize(varname)) {
       if (!tokenMap.has(token)) tokenMap.set(token, new Set());
       tokenMap.get(token).add(varid);
@@ -180,7 +174,6 @@ const assignIdsToVariables = async () => {
   const tokenbatch = db.batch();
   for (const [token, ids] of tokenMap) {
     tokenbatch.put(`token:${token}`, Array.from(ids));
-    debugfile.write(`token:${token} -> ${Array.from(ids).join(', ')}\n`);
   }
   await tokenbatch.write();
   db.close();

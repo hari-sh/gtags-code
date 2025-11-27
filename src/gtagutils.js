@@ -42,7 +42,6 @@ async function runGtags(root) {
 }
 
 async function processGtagsStream(gtagsStream) {
-    const debugfile = fssync.createWriteStream(path.join(vscode.workspace.rootPath, '.cache', 'debugfile'));
     const rl = readline.createInterface({
         input: gtagsStream,
         crlfDelay: Infinity
@@ -60,7 +59,6 @@ async function processGtagsStream(gtagsStream) {
         const file = parts[2];
         const patternStartIndex = line.indexOf(file) + file.length + 1;
         const pattern = '^' + line.slice(patternStartIndex).trim() + '$';
-        debugfile.write(`${tagName}, ${file}, ${pattern}\n`);
         batchOps.push({
             type: 'put',
             key: `tag:${tagName}`,
@@ -80,7 +78,6 @@ async function processGtagsStream(gtagsStream) {
     if (batchOps.length > 0) {
         await batchWriteIntoDB(batchOps);
     }
-    debugfile.end();
 }
 
 async function runGlobalCommand(cmd, args, cwd) {
