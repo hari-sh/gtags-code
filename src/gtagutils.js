@@ -52,28 +52,54 @@ async function processGtagsStream(gtagsStream) {
     let batchOps = [];
 
     for await (const line of rl) {
-        if (!line.trim()) return null;
-        const parts = line.split(/\s+/);
-        if (parts.length < 2) return null;
-        const tagName = parts[0];
-        const file = parts[2];
-        const patternStartIndex = line.indexOf(file) + file.length + 1;
-        const pattern = '^' + line.slice(patternStartIndex).trim() + '$';
-        batchOps.push({
-            type: 'put',
-            key: `tag:${tagName}`,
-            value: {
-                file,
-                pattern,
-                tagKind: 'f'
+        try {
+            if (!line.trim()) {
+                continue;
             }
-        });
 
-        if (batchOps.length >= batchSize) {
-            await batchWriteIntoDB(batchOps);
-            batchOps = [];
+            const parts = line.split(/\s+/);
+            if (parts.length < 3) {
+                console.warn("Malformed line (parts < 3):", line);
+                continue;
+            }
+
+            const tagName = parts[0];
+            const file = parts[2];
+
+            if (!tagName || !file) {
+                console.warn("Invalid tagName/file:", line);
+                continue;
+            }
+
+            const patternStartIndex = line.indexOf(file);
+            if (patternStartIndex < 0) {
+                console.warn("File not found in line:", line);
+                continue;
+            }
+
+            const pattern = '^' + line.slice(patternStartIndex + file.length + 1).trim() + '$';
+
+            batchOps.push({
+                type: 'put',
+                key: `tag:${tagName}`,
+                value: {
+                    file,
+                    pattern,
+                    tagKind: 'f'
+                }
+            });
+
+            if (batchOps.length >= batchSize) {
+                await batchWriteIntoDB(batchOps);
+                batchOps = [];
+            }
+        } catch (err) {
+            // **Critical safety**: catch ANY other errors but keep going
+            console.error("Error while processing line:", line, err);
+            continue;
         }
     }
+
 
     if (batchOps.length > 0) {
         await batchWriteIntoDB(batchOps);
