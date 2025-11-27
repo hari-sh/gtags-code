@@ -11,20 +11,20 @@ const gtagsCmd = config.get('gtagsCmd');
 
 const exts = new Set(['.c', '.cpp', '.h', '.hpp', '.cc', '.hh', '.cxx', '.hxx']);
 
-async function getSourceFiles(dir, out = []) {
+async function getSourceFiles(dir, root, out = []) {
     for (const e of await fs.readdir(dir, {withFileTypes: true})) {
         const fullPath = path.join(dir, e.name);
         if (e.isDirectory()) {
-            await getSourceFiles(fullPath, out);
+            await getSourceFiles(fullPath, root, out);
         } else if (exts.has(path.extname(e.name))) {
-            out.push(fullPath);
+            out.push(path.relative(root, fullPath));
         }
     }
     return out;
 }
 
 async function runGtags(root) {
-    const files = await getSourceFiles(root);
+    const files = await getSourceFiles(root, root);
     const p = spawn(gtagsCmd, ['-f', '-'], {cwd: root});
     for (const f of files) {
         p.stdin.write(f + '\n');
@@ -42,6 +42,7 @@ async function runGtags(root) {
 }
 
 async function processGtagsStream(gtagsStream) {
+    const debugfile = fssync.createWriteStream(path.join(vscode.workspace.rootPath, '.cache', 'debugfile'));
     const rl = readline.createInterface({
         input: gtagsStream,
         crlfDelay: Infinity
@@ -59,7 +60,7 @@ async function processGtagsStream(gtagsStream) {
         const file = parts[2];
         const patternStartIndex = line.indexOf(file) + file.length + 1;
         const pattern = '^' + line.slice(patternStartIndex).trim() + '$';
-
+        debugfile.write(`${tagName}, ${file}, ${pattern}\n`);
         batchOps.push({
             type: 'put',
             key: `tag:${tagName}`,
@@ -79,21 +80,7 @@ async function processGtagsStream(gtagsStream) {
     if (batchOps.length > 0) {
         await batchWriteIntoDB(batchOps);
     }
-}
-
-function runCommandAndTransform(cmd, args, cwd, outfile) {
-    const child = spawn(cmd, args, {cwd});
-    const rl = readline.createInterface({input: child.stdout});
-    const outStream = fssync.createWriteStream(path.join(cwd, outfile));
-
-    rl.on('line', (line) => {
-        const transformed = transformGtagsLine(line);
-        if (transformed) {
-            outStream.write(transformed + '\n');
-        }
-    });
-
-    child.on('close', () => outStream.end());
+    debugfile.end();
 }
 
 async function runGlobalCommand(cmd, args, cwd) {
