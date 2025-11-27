@@ -48,7 +48,7 @@ async function processGtagsStream(gtagsStream) {
     });
 
     const db = getDB();
-    const batchSize = 1000;
+    const batchSize = 200000;
     let batchOps = [];
 
     for await (const line of rl) {
