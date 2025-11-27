@@ -46,10 +46,7 @@ function closeDB() {
 }
 
 async function cleanDB() {
-  await db.close();
-  await fs.rm(dbpath, { recursive: true, force: true });
-  await fs.mkdir(dbpath, { recursive: true });
-  await db.open();
+  await db.clear();
 }
 
 async function getValueFromDb(key) {
@@ -160,7 +157,7 @@ const assignIdsToVariables = async () => {
     alltags.push(key.slice(4));
   }
   alltags.sort((a,b) => a.length - b.length);
-
+  
   const idbatch = db.batch();
   const tokenMap = new Map();
   for(let ind = 0; ind < alltags.length; ind++) {
