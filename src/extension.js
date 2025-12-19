@@ -7,22 +7,23 @@ const logger = require('./logger');
 const debug = require('./debug');
 const {parseToTagsFile, cleanGtagsFiles} = require('./gtagutils');
 const channel = vscode.window.createOutputChannel('gtags-code');
+const {createPreview} = require('../callers/markutil');
 
 async function parseAndStoreTags() {
-channel.show();
-const { performance } = require('perf_hooks');
-const start = performance.now();
-channel.appendLine('Cleaning existing Tags DataBase...');
-await cleanGtagsFiles(vscode.workspace.rootPath);
-await cleanDB();
-await openDB();
-channel.appendLine('Running Gtags...');
-await parseToTagsFile(vscode.workspace.rootPath);
-channel.appendLine('Creating Tags DataBase...');
-await assignIdsToVariables();
-channel.appendLine('Tags DataBase created successfully...');
-const sec = ((performance.now() - start) / 1000).toFixed(3);
-channel.appendLine(`Elapsed: ${sec} seconds`);
+  channel.show();
+  const { performance } = require('perf_hooks');
+  const start = performance.now();
+  channel.appendLine('Cleaning existing Tags DataBase...');
+  await cleanGtagsFiles(vscode.workspace.rootPath);
+  await cleanDB();
+  await openDB();
+  channel.appendLine('Running Gtags...');
+  await parseToTagsFile(vscode.workspace.rootPath);
+  channel.appendLine('Creating Tags DataBase...');
+  await assignIdsToVariables();
+  channel.appendLine('Tags DataBase created successfully...');
+  const sec = ((performance.now() - start) / 1000).toFixed(3);
+  channel.appendLine(`Elapsed: ${sec} seconds`);
 }
 
 async function handleSearchTagsCommand(context) {
@@ -85,6 +86,7 @@ module.exports = {
     context.subscriptions.push(vscode.commands.registerCommand('extension.searchTags', handleSearchTagsCommand));
     context.subscriptions.push(vscode.commands.registerCommand('extension.jumpTag', jump2tag));
     context.subscriptions.push(vscode.commands.registerCommand('extension.getReferences', getReferences));
+    context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => createPreview(context)));
   },
   deactivate() {
     closeDB();

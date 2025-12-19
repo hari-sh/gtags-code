@@ -50,6 +50,10 @@
       {
         "command": "extension.getReferences",
         "title": "GTags: Get References"
+      },
+      {
+        "command": "extension.getCallers",
+        "title": "GTags: Get Callers"
       }
     ],
     "menus": {
@@ -61,6 +65,11 @@
         },
         {
           "command": "extension.getReferences",
+          "when": "editorTextFocus",
+          "group": "navigation"
+        },
+        {
+          "command": "extension.getCallers",
           "when": "editorTextFocus",
           "group": "navigation"
         }
