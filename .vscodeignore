@@ -12,6 +12,7 @@ tsconfig.json
 jsconfig.json
 build.js
 src/**
+callers/**
 
 # Ignore workflows and release automation
 .vscodeignore
