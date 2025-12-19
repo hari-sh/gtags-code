@@ -26,7 +26,7 @@ async function revealLocation(file, line) {
     path.join(root.uri.fsPath, file)
   );
   
-  await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+  await vscode.commands.executeCommand('workbench.action.focusFirstEditorGroup');
   const doc = await vscode.workspace.openTextDocument(fileUri);
 
   const editor = await vscode.window.showTextDocument(doc, {
