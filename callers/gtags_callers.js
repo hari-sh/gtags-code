@@ -1,6 +1,6 @@
 const { spawn } = require("child_process");
 const vscode = require("vscode");
-const config = vscode.workspace.getConfiguration("gtags");
+const config = vscode.workspace.getConfiguration("gtags-code");
 const globalCmd = config.get("globalCmd") || "global";
 
 function runGlobal(args, cwd) {
