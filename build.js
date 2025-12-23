@@ -25,7 +25,7 @@ esbuild.build({
   platform: 'node',
   format: 'cjs',
   outfile: 'dist/extension.js',
-  external: ['vscode'],
+  external: ['vscode', 'node-gyp-build'],
   banner: {
     js: `// Bundled VSCode extension with classic-level and node-gyp-build`,
   },

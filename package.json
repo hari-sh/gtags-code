@@ -17,7 +17,7 @@
     "url": "https://github.com/hari-sh/gtags-code"
   },
   "activationEvents": [],
-  "main": "./dist/extension.js",
+  "main": "./src/extension.js",
   "contributes": {
     "configuration": {
       "title": "gtags-code configuration",
@@ -77,9 +77,12 @@
     }
   },
   "scripts": {
-    "bundle": "node build.js",
-    "vscode:prepublish": "node build.js",
-    "package": "vsce package"
+    "bundle": "npm run prod && node build.js",
+    "vscode:prepublish": "npm run prod && node build.js",
+    "package": "vsce package",
+    "debug": "node switch-mode.js debug",
+    "prod": "node switch-mode.js prod",
+    "clean": "rm -rf dist && npm run debug"
   },
   "dependencies": {
     "classic-level": "^3.0.0",

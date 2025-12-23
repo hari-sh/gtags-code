@@ -3,11 +3,9 @@ const path = require('path');
 const fs = require('fs').promises;
 const {jumputil, getTag} = require('./tagutils');
 const {initDB, openDB, closeDB, cleanDB, assignIdsToVariables, searchQuery, resetSearchMap} = require('./dbutils');
-const logger = require('./logger');
-const debug = require('./debug');
 const {parseToTagsFile, cleanGtagsFiles} = require('./gtagutils');
 const channel = vscode.window.createOutputChannel('gtags-code');
-const {createPreview} = require('../callers/markutil');
+const {createPreview} = require('./gtags_callers');
 const {spawn} = require('child_process');
 
 function getVersionAsync(cmd, versionArgs = ["--version"]) {
@@ -113,7 +111,6 @@ async function getReferences(context) {
 
 module.exports = {
   activate(context) {
-    logger.initLogger();
     initDB();
     context.subscriptions.push(channel);
     context.subscriptions.push(vscode.commands.registerCommand('extension.storeTags', parseAndStoreTags));
@@ -124,6 +121,5 @@ module.exports = {
   },
   deactivate() {
     closeDB();
-    logger.disposeLogger();
   }
 };
