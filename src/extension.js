@@ -8,8 +8,42 @@ const debug = require('./debug');
 const {parseToTagsFile, cleanGtagsFiles} = require('./gtagutils');
 const channel = vscode.window.createOutputChannel('gtags-code');
 const {createPreview} = require('../callers/markutil');
+const {spawn} = require('child_process');
+
+function getVersionAsync(cmd, versionArgs = ["--version"]) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, versionArgs, { shell: true });
+
+    let output = "";
+
+    child.stdout.on("data", d => output += d);
+    child.stderr.on("data", d => output += d);
+
+    child.on("error", () => {
+        reject(new Error(`Please install gtags or provide gtags/global path in settings `));
+    });
+
+    child.on("close", (code) => {
+      if (code === 0 || code === 1) {
+        resolve(output.trim());
+      } else {
+        reject(new Error(`Please install gtags or provide gtags/global path in settings `));
+      }
+    });
+  });
+}
+
+
+async function preflight() {
+  const config = vscode.workspace.getConfiguration('gtags-code');
+  const globalCmd = config.get('globalCmd');
+  const gtagsCmd = config.get('gtagsCmd');
+  await getVersionAsync(globalCmd);
+  await getVersionAsync(gtagsCmd);
+}
 
 async function parseAndStoreTags() {
+  await preflight();
   channel.show();
   const { performance } = require('perf_hooks');
   const start = performance.now();
