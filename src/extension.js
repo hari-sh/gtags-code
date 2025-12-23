@@ -1,9 +1,9 @@
 const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs').promises;
-const {jumputil, getTag} = require('./tagutils');
+const {jumputil, getTag} = require('./queryTags');
 const {initDB, openDB, closeDB, cleanDB, assignIdsToVariables, searchQuery, resetSearchMap} = require('./dbutils');
-const {parseToTagsFile, cleanGtagsFiles} = require('./gtagutils');
+const {parseToTagsFile, cleanGtagsFiles} = require('./buildTags');
 const channel = vscode.window.createOutputChannel('gtags-code');
 const {createPreview} = require('./gtags_callers');
 const {spawn} = require('child_process');
