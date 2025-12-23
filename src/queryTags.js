@@ -1,4 +1,5 @@
-const {getValueFromDb, getDB, batchWriteIntoDB} = require('./dbutils');
+const { spawn } = require('child_process');
+const {getValueFromDb, getDB, batchWriteIntoDB, searchQuery, resetSearchMap} = require('./dbutils');
 const vscode = require('vscode');
 const fs = require('fs');
 const readline = require('readline');
@@ -145,4 +146,54 @@ async function jumputil(editor, context, key) {
     }
 }
 
-module.exports = {jumputil ,getTag};
+
+async function handleSearchTagsCommand(context) {
+  const quickPick = vscode.window.createQuickPick();
+  quickPick.placeholder = 'Search tags...';
+  quickPick.matchOnDescription = true;
+  quickPick.filterItems = false;
+  quickPick.matchOnDescription = false;
+  quickPick.matchOnDetail = false;
+
+  quickPick.onDidChangeValue(async (input) => {
+    if (!input) {
+      quickPick.items = [];
+      return;
+    }
+    const items = await searchQuery(input);
+    quickPick.items = items.map(r => ({
+    label: r.label,
+    description: r.description,
+    alwaysShow: true
+  }));
+  });
+
+  quickPick.onDidAccept(() => {
+    const selected = quickPick.selectedItems[0];
+    if (selected) {
+      jumputil(vscode.window.activeTextEditor, context, selected.label)
+    }
+    quickPick.hide();
+    resetSearchMap();
+  });
+
+  quickPick.onDidHide(() => quickPick.dispose());
+  quickPick.show();
+}
+
+async function jump2tag(context) {
+  const editor = vscode.window.activeTextEditor
+  const tag = getTag(editor)
+  return jumputil(editor, context, tag)
+}
+
+async function getReferencesInternal(context, editor) {
+  const tag = getTag(editor);
+  const terminal = vscode.window.createTerminal(`${tag} - References`);
+  terminal.show();
+  const config = vscode.workspace.getConfiguration('gtags-code');
+  const globalCmd = config.get('globalCmd');
+  terminal.sendText(`${globalCmd} --result=grep -xr ${tag}`);
+}
+
+module.exports = {jump2tag , getReferencesInternal, handleSearchTagsCommand};

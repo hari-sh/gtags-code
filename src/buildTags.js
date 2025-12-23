@@ -4,7 +4,8 @@ const path = require('path');
 const readline = require('readline');
 const {spawn} = require('child_process');
 const vscode = require('vscode');
-const {getDB, batchWriteIntoDB} = require('./dbutils');
+const {getDB, initDB, cleanDB, closeDB, openDB, batchWriteIntoDB, assignIdsToVariables} = require('./dbutils');
+const { performance } = require('perf_hooks');
 const config = vscode.workspace.getConfiguration('gtags-code');
 const globalCmd = config.get('globalCmd');
 const gtagsCmd = config.get('gtagsCmd');
@@ -130,7 +131,54 @@ async function cleanGtagsFiles(root) {
     }
 }
 
+function getVersionAsync(cmd, versionArgs = ["--version"]) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, versionArgs, { shell: true });
+
+    let output = "";
+
+    child.stdout.on("data", d => output += d);
+    child.stderr.on("data", d => output += d);
+
+    child.on("error", () => {
+      reject(new Error(`Please install gtags or provide gtags/global path in settings `));
+    });
+
+    child.on("close", (code) => {
+      if (code === 0 || code === 1) {
+        resolve(output.trim());
+      } else {
+        reject(new Error(`Please install gtags or provide gtags/global path in settings `));
+      }
+    });
+  });
+}
+
+async function preflight() {
+  const config = vscode.workspace.getConfiguration('gtags-code');
+  const globalCmd = config.get('globalCmd');
+  const gtagsCmd = config.get('gtagsCmd');
+  await getVersionAsync(globalCmd);
+  await getVersionAsync(gtagsCmd);
+}
+
+async function parseAndStoreTags(channel, root) {
+  await preflight();
+  channel.show();
+  const start = performance.now();
+  channel.appendLine('Cleaning existing Tags DataBase...');
+  await cleanGtagsFiles(root);
+  await cleanDB();
+  await openDB();
+  channel.appendLine('Running Gtags...');
+  await parseToTagsFile(root);
+  channel.appendLine('Creating Tags DataBase...');
+  await assignIdsToVariables();
+  channel.appendLine('Tags DataBase created successfully...');
+  const sec = ((performance.now() - start) / 1000).toFixed(3);
+  channel.appendLine(`Elapsed: ${sec} seconds`);
+}
+
 module.exports = {
-    parseToTagsFile,
-    cleanGtagsFiles
+    parseAndStoreTags
 };
