@@ -17,7 +17,7 @@
     "url": "https://github.com/hari-sh/gtags-code"
   },
   "activationEvents": [],
-  "main": "./src/extension.js",
+  "main": "./extension.js",
   "contributes": {
     "configuration": {
       "title": "gtags-code configuration",
