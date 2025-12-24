@@ -41,7 +41,7 @@
       },
       {
         "command": "extension.jumpTag",
-        "title": "GTags: Jump To Tag"
+        "title": "GTags: Go To Definition"
       },
       {
         "command": "extension.searchTags",
@@ -77,12 +77,10 @@
     }
   },
   "scripts": {
-    "bundle": "npm run prod && node build.js",
-    "vscode:prepublish": "npm run prod && node build.js",
+    "bundle": "node build.js",
+    "vscode:prepublish": "node build.js",
     "package": "vsce package",
-    "debug": "node switch-mode.js debug",
-    "prod": "node switch-mode.js prod",
-    "clean": "rm -rf dist && npm run debug"
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "classic-level": "^3.0.0",

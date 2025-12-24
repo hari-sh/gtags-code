@@ -2,7 +2,29 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Run Extension",
+			"name": "Run Extension (Debug Mode)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}"
+			],
+			"env": {
+				"GTAGS_MODE": "debug"
+			}
+		},
+		{
+			"name": "Run Extension (Production Mode)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}"
+			],
+			"env": {
+				"GTAGS_MODE": "prod"
+			}
+		},
+		{
+			"name": "Run Extension (Auto)",
 			"type": "extensionHost",
 			"request": "launch",
 			"args": [
