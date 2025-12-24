@@ -19,10 +19,10 @@ async function getPattern(filePath, name, canceller, pattern, matchWhole) {
         if ((matchWhole && line === pattern) || line.startsWith(pattern)) {
             found = true
             charPos = Math.max(line.indexOf(name), 0)
-            console.log(`ctags-code: Found '${pattern}' at ${lno}:${charPos}`)
+            console.log(`gtags-code: Found '${pattern}' at ${lno}:${charPos}`)
             return {retval:false, found, lno, charPos}
         } else if (canceller && canceller.isCancellationRequested) {
-            console.log('ctags-code: Cancelled pattern searching')
+            console.log('gtags-code: Cancelled pattern searching')
             return {retval:false, found, lno, charPos}
         }
     }
@@ -44,7 +44,7 @@ async function getlnoPattern(entry, canceller) {
     if (pattern.startsWith("^")) {
         pattern = pattern.substring(1, pattern.length)
     } else {
-        console.error(`ctags-code: Unsupported pattern ${pattern}`)
+        console.error(`gtags-code: Unsupported pattern ${pattern}`)
         return;
     }
 
@@ -80,7 +80,7 @@ async function getFilelno(document, sel) {
                     charPos = Math.max(0, parseInt(text) - 1)
                 }
             }
-            console.log(`ctags-code: Resolved file position to line ${lno + 1}, char ${charPos + 1}`)
+            console.log(`gtags-code: Resolved file position to line ${lno + 1}, char ${charPos + 1}`)
             return new vscode.Selection(lno, charPos, lno, charPos)
         }
     }
@@ -95,7 +95,7 @@ async function openAndReveal(context, editor, document, sel) {
     return await vscode.window.showTextDocument(doc, showOptions);
 }
 
-async function revealCTags(context, editor, entry) {
+async function revealInCode(context, editor, entry) {
     if (!entry) {
         return
     }
@@ -133,12 +133,12 @@ async function jumputil(editor, context, key) {
             return tag
         });
         if (!options.length) {
-            return vscode.window.showInformationMessage(`ctags-code: No tags found for ${tag}`)
+            return vscode.window.showInformationMessage(`gtags-code: No tags found for ${tag}`)
         } else if (options.length === 1) {
-            return revealCTags(context, editor, options[0])
+            return revealInCode(context, editor, options[0])
         } else {
             return vscode.window.showQuickPick(options).then(opt => {
-                return revealCTags(context, editor, opt)
+                return revealInCode(context, editor, opt)
             })
         }
     } else {
