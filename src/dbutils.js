@@ -1,34 +1,36 @@
 const path = require('path');
 const vscode = require('vscode');
-const nodeGypBuild = require('node-gyp-build');
 
-function customNodeGypBuild() {
-  const prebuildsPath = path.join(__dirname, 'prebuilds');
-  return nodeGypBuild(prebuildsPath);
+let ClassicLevel;
+
+if (__dirname.includes('src')) {
+  // Debug mode: use standard classic-level from node_modules
+  ClassicLevel = require('classic-level').ClassicLevel;
+} else {
+  // Prod mode: patch node-gyp-build to use local prebuilds
+  const nodeGypBuild = require('node-gyp-build');
+  const originalNodeGypBuild = nodeGypBuild;
+  const nodeGypBuildPath = require.resolve('node-gyp-build');
+  require.cache[nodeGypBuildPath].exports = function (p) {
+    return originalNodeGypBuild(p || path.join(__dirname, 'prebuilds'));
+  };
+  ClassicLevel = require('classic-level').ClassicLevel;
 }
 
-const Module = require('module');
-const originalRequire = Module.prototype.require;
-
-Module.prototype.require = function (id) {
-  if (id === 'node-gyp-build') {
-    return customNodeGypBuild;
-  }
-  return originalRequire.apply(this, arguments);
-};
-
-const { ClassicLevel } = require('classic-level');
 const fs = require('fs').promises;
 
 let db;
-const dbpath = path.join(vscode.workspace.rootPath, 'tagsdb');
+let dbpath;
 let inputUnionMap = new Map();
 
 function resetSearchMap()  {
   inputUnionMap = new Map();
 }
 
-function initDB() {
+function initDB(rootPath) {
+  if (!dbpath) {
+    dbpath = path.join(rootPath, 'tagsdb');
+  }
   if (!db) {
     db = new ClassicLevel(dbpath, { valueEncoding: 'json' });
   }

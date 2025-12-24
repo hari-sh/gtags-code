@@ -3,7 +3,7 @@ name: Package and Release VSIX
 on:
   push:
     branches:
-      - '**'  # Trigger on all branches
+      - main  # Only trigger on main branch for production releases
 
 permissions:
   contents: write  # Needed to push tags and create releases
@@ -24,23 +24,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Set dynamic version from branch
+      - name: Set version from package.json
         id: version
         run: |
-          BRANCH="${GITHUB_REF##*/}"
-          SAFE_BRANCH=$(echo "$BRANCH" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
-          BASE=$(node -p "require('./package.json').version.split('-')[0]")
-          VERSION="${BASE}-dev.${GITHUB_RUN_NUMBER}"
-
+          VERSION=$(node -p "require('./package.json').version")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-          node -e "
-            const fs = require('fs');
-            const pkg = require('./package.json');
-            pkg.version = '$VERSION';
-            fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
-          "
 
       - name: Create Git tag
         run: |

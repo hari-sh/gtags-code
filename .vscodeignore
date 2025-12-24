@@ -1,5 +1,6 @@
 # Ignore dev dependencies
 node_modules/**
+!node_modules/node-gyp-build/**
 
 # Ignore config, build files
 .vscode/
@@ -11,8 +12,8 @@ npm-debug.log
 tsconfig.json
 jsconfig.json
 build.js
+switch-mode.js
 src/**
-callers/**
 
 # Ignore workflows and release automation
 .vscodeignore

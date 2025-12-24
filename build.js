@@ -20,17 +20,17 @@ for (const target of targets) {
 }
 
 esbuild.build({
-  entryPoints: ['src/extension.js'],
+  entryPoints: ['src/main.js'],
   bundle: true,
   platform: 'node',
   format: 'cjs',
-  outfile: 'dist/extension.js',
-  external: ['vscode'],
+  outfile: 'dist/main.js',
+  external: ['vscode', 'node-gyp-build'],
   banner: {
     js: `// Bundled VSCode extension with classic-level and node-gyp-build`,
   },
 }).then(() => {
-  console.log('Build complete: dist/extension.js');
+  console.log('Build complete: dist/main.js');
 }).catch(e => {
   console.error(e);
   process.exit(1);

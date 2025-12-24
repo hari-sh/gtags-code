@@ -17,7 +17,7 @@
     "url": "https://github.com/hari-sh/gtags-code"
   },
   "activationEvents": [],
-  "main": "./dist/extension.js",
+  "main": "./extension.js",
   "contributes": {
     "configuration": {
       "title": "gtags-code configuration",
@@ -41,7 +41,7 @@
       },
       {
         "command": "extension.jumpTag",
-        "title": "GTags: Jump To Tag"
+        "title": "GTags: Go To Definition"
       },
       {
         "command": "extension.searchTags",
@@ -79,7 +79,10 @@
   "scripts": {
     "bundle": "node build.js",
     "vscode:prepublish": "node build.js",
-    "package": "vsce package"
+    "prod": "node build.js",
+    "prepackage": "npm run prod",
+    "package": "vsce package",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "classic-level": "^3.0.0",
