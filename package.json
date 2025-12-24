@@ -79,6 +79,8 @@
   "scripts": {
     "bundle": "node build.js",
     "vscode:prepublish": "node build.js",
+    "prod": "node build.js",
+    "prepackage": "npm run prod",
     "package": "vsce package",
     "clean": "rm -rf dist"
   },

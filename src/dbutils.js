@@ -20,14 +20,17 @@ if (__dirname.includes('src')) {
 const fs = require('fs').promises;
 
 let db;
-const dbpath = path.join(vscode.workspace.rootPath, 'tagsdb');
+let dbpath;
 let inputUnionMap = new Map();
 
 function resetSearchMap()  {
   inputUnionMap = new Map();
 }
 
-function initDB() {
+function initDB(rootPath) {
+  if (!dbpath) {
+    dbpath = path.join(rootPath, 'tagsdb');
+  }
   if (!db) {
     db = new ClassicLevel(dbpath, { valueEncoding: 'json' });
   }

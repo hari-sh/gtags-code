@@ -8,7 +8,12 @@ const channel = vscode.window.createOutputChannel('gtags-code');
 const {createPreview} = require('./gtags_callers');
 
 async function storeTags() {
-    await parseAndStoreTags(channel, vscode.workspace.rootPath);
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+        vscode.window.showErrorMessage('No workspace folder open');
+        return;
+    }
+    await parseAndStoreTags(channel, workspaceFolder.uri.fsPath);
 }
 
 async function searchTags(context) {
@@ -31,7 +36,10 @@ async function getCallers(context) {
 
 module.exports = {
   activate(context) {
-    initDB();
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (workspaceFolder) {
+      initDB(workspaceFolder.uri.fsPath);
+    }
     context.subscriptions.push(channel);
     context.subscriptions.push(vscode.commands.registerCommand('extension.storeTags', storeTags));
     context.subscriptions.push(vscode.commands.registerCommand('extension.searchTags', searchTags));

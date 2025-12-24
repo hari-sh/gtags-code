@@ -268,7 +268,9 @@ function getTag(editor) {
 }
 
 async function getTagsRef(tagName) {
-  const callerData = await getCallersWithEnclosure(tagName, vscode.workspace.rootPath);
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+  if (!workspaceFolder) return [];
+  const callerData = await getCallersWithEnclosure(tagName, workspaceFolder.uri.fsPath);
   const  result = getEnclosingInfoArray(callerData);
   return result.filter(obj => obj.name !== tagName);
 }

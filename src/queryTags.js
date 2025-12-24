@@ -124,7 +124,10 @@ async function jumputil(editor, context, key) {
         console.log('Found:', value);
         const options = [value].map(tag => {
             if (!path.isAbsolute(tag.file)) {
-                tag.file = path.join(vscode.workspace.rootPath, tag.file)
+                const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+                if (workspaceFolder) {
+                    tag.file = path.join(workspaceFolder.uri.fsPath, tag.file)
+                }
             }
             tag.description = ""
             tag.label = tag.file
