@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Check for mode from environment variable or command line argument
-const mode = 'prod';
+const mode = 'debug';
 if (mode && !['debug', 'prod'].includes(mode)) {
   console.error('Invalid mode. Use "debug" or "prod"');
   process.exit(1);

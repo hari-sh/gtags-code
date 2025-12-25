@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,53 +12,16 @@
   <svg id="mindmap"></svg>
   <script src="d3.js"></script>
   <script src="d3-flextree.js"></script>
+  <script src="d3-flextree.js"></script>
+  <script src="vscode-api.js"></script>
   <script src="treeview.js"></script>
-  <script>
-  const vscode = acquireVsCodeApi();
-  const pending = new Map();
-
-  window.getTags = function (tagName) {
-    return new Promise(resolve => {
-      const id = Math.random().toString(36);
-
-      pending.set(id, resolve);
-
-      vscode.postMessage({
-        type: 'getTags',
-        id,
-        tagName
-      });
-    });
-  };
-
-  window.postFileData = function (tagName) {
-      const id = Math.random().toString(36);
-      alert(id);
-      vscode.postMessage({
-        type: 'postFileInfo',
-        id,
-        tagName
-      });
-  };
-
-  window.addEventListener('message', e => {
-    const msg = e.data;
-
-    if (msg.type === 'getTags:response') {
-      const resolve = pending.get(msg.id);
-      pending.delete(msg.id);
-      resolve(msg.data);
-    }
-  });
-</script>
   <script>
     window.mm?.destroy();
     window.mm = window.markmap.Markmap.create(
       'svg#mindmap',
-      window.getTags,
-      window.postFileData,
       "__SYMBOL__"
     );
   </script>
 </body>
+
 </html>
