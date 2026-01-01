@@ -7,7 +7,7 @@ const logger = require('./logger');
 const debug = require('./debug');
 const {parseToTagsFile, cleanGtagsFiles} = require('./gtagutils');
 const channel = vscode.window.createOutputChannel('gtags-code');
-const {createPreview} = require('../callers/markutil');
+const {createPreview} = require('./markutil');
 
 async function parseAndStoreTags() {
   channel.show();
