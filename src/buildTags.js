@@ -40,10 +40,11 @@ async function runGtags(root, channel) {
             return;
         }
         processed++;
-        if (processed % 500 === 0 || processed === total) {
+        if (processed % 500 === 0) {
             channel.appendLine(`${processed}/${total} files indexed...`);
         }
         if(processed === total) {
+            channel.appendLine(`${processed}/${total} files indexed...`);
             channel.appendLine('Finalizing file indexing...');
         }
     });
