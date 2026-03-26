@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-
+const trigger = 1
 // Check for mode from environment variable or command line argument
 const mode = 'prod';
 if (mode && !['debug', 'prod'].includes(mode)) {
