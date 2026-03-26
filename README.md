@@ -33,8 +33,8 @@ Open the **Command Palette** (`Ctrl+Shift+P` or `Cmd+Shift+P`) and run:
 And keep these two properties
 
 ```
-  "gtags-code.gtagsCmd": "/path/to/gtags/executable",
-  "gtags-code.globalCmd": "/path/to/global/executable",
+  "gtags-code.gtagsCmd": <path_to_gtags_executable>,
+  "gtags-code.globalCmd": <path_to_global_executable>
 ```
 
 ## Usage

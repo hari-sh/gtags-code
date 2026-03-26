@@ -24,9 +24,27 @@ async function getSourceFiles(dir, root, out = []) {
     return out;
 }
 
-async function runGtags(root) {
+async function runGtags(root, channel) {
     const files = await getSourceFiles(root, root);
-    const p = spawn(gtagsCmd, ['-f', '-'], {cwd: root});
+    const total = files.length;
+    channel.appendLine(`Found ${total} source files(s) to index...`);
+    const p = spawn(gtagsCmd, ['-v', '-f', '-'], {cwd: root});
+
+    let processed = 0;
+    const rl = readline.createInterface({
+        input: p.stderr,
+        crlfDelay: Infinity
+    });
+    rl.on('line', (line) => {
+        if (!line.trim()) {
+            return;
+        }
+        processed++;
+        if (processed % 500 === 0 || processed === total) {
+            channel.appendLine(`${processed}/${total} files indexed...`);
+        }
+    });
+
     for (const f of files) {
         p.stdin.write(f + '\n');
     }
@@ -42,7 +60,7 @@ async function runGtags(root) {
     });
 }
 
-async function processGtagsStream(gtagsStream) {
+async function processGtagsStream(gtagsStream, channel) {
     const rl = readline.createInterface({
         input: gtagsStream,
         crlfDelay: Infinity
@@ -50,6 +68,7 @@ async function processGtagsStream(gtagsStream) {
 
     const db = getDB();
     const batchSize = 200000;
+    let symbols = 0;
     let batchOps = [];
 
     for await (const line of rl) {
@@ -91,6 +110,8 @@ async function processGtagsStream(gtagsStream) {
             });
 
             if (batchOps.length >= batchSize) {
+                symbols += batchSize;
+                channel.appendLine(`${symbols} symbols processed...`);
                 await batchWriteIntoDB(batchOps);
                 batchOps = [];
             }
@@ -103,21 +124,25 @@ async function processGtagsStream(gtagsStream) {
 
 
     if (batchOps.length > 0) {
+        channel.appendLine(`${symbols} symbols processed...`);
+        channel.appendLine(`Symbol indexing completed...`);
         await batchWriteIntoDB(batchOps);
     }
 }
 
-async function runGlobalCommand(cmd, args, cwd) {
+async function runGlobalCommand(cmd, args, cwd, channel) {
     const child = spawn(cmd, args, {cwd});
-    await processGtagsStream(child.stdout);
+    await processGtagsStream(child.stdout, channel);
 }
 
-async function parseToTagsFile(root) {
-    await runGtags(root);
+async function parseToTagsFile(root, channel) {
+    await runGtags(root, channel);
+    channel.appendLine('File indexing completed...');
     await runGlobalCommand(
             globalCmd,
             ['-x', '.'],
-            root        
+            root,         
+            channel
         );
     }
 
@@ -171,9 +196,11 @@ async function parseAndStoreTags(channel, root) {
   await cleanDB();
   await openDB();
   channel.appendLine('Running Gtags...');
-  await parseToTagsFile(root);
+  channel.appendLine('Finding Number of files to be indexed...');
+  await parseToTagsFile(root, channel);
   channel.appendLine('Creating Tags DataBase...');
   await assignIdsToVariables();
+  channel.appendLine('Post processing symbols...');
   channel.appendLine('Tags DataBase created successfully...');
   const sec = ((performance.now() - start) / 1000).toFixed(3);
   channel.appendLine(`Elapsed: ${sec} seconds`);
