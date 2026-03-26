@@ -10,7 +10,6 @@ if (mode && !['debug', 'prod'].includes(mode)) {
 
 const productionBundlePath = path.join(__dirname, 'dist/main.js');
 const developmentSourcePath = path.join(__dirname, 'src/main.js');
-
 const useProduction = mode === 'prod' || (!mode && fs.existsSync(productionBundlePath));
 
 if (useProduction) {
