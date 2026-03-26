@@ -43,6 +43,9 @@ async function runGtags(root, channel) {
         if (processed % 500 === 0 || processed === total) {
             channel.appendLine(`${processed}/${total} files indexed...`);
         }
+        if(processed === total) {
+            channel.appendLine('Finalizing file indexing...');
+        }
     });
 
     for (const f of files) {
