@@ -195,7 +195,8 @@ const searchQuery = async (query) => {
 };
 
 
-const assignIdsToVariables = async () => {
+const assignIdsToVariables = async (channel) => {
+  channel.appendLine('Creating Tags DataBase...');
   const alltags = [];
   for await (const [key, value] of db.iterator({ gte: 'tag:', lt: 'tag;' })) {
     alltags.push(key.slice(4));

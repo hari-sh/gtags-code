@@ -25,9 +25,11 @@ async function getSourceFiles(dir, root, out = []) {
 }
 
 async function runGtags(root, channel) {
+    channel.appendLine('Finding Number of files to be indexed...');
     const files = await getSourceFiles(root, root);
     const total = files.length;
     channel.appendLine(`Found ${total} source files(s) to index...`);
+    channel.appendLine('Running Gtags...');
     const p = spawn(gtagsCmd, ['-v', '-f', '-'], {cwd: root});
 
     let processed = 0;
@@ -125,11 +127,7 @@ async function processGtagsStream(gtagsStream, channel) {
             continue;
         }
     }
-
-
     if (batchOps.length > 0) {
-        channel.appendLine(`${symbols} symbols processed...`);
-        channel.appendLine(`Symbol indexing completed...`);
         await batchWriteIntoDB(batchOps);
     }
 }
@@ -142,15 +140,26 @@ async function runGlobalCommand(cmd, args, cwd, channel) {
 async function parseToTagsFile(root, channel) {
     await runGtags(root, channel);
     channel.appendLine('File indexing completed...');
+    channel.appendLine('Indexing structure types and functions...');
     await runGlobalCommand(
             globalCmd,
             ['-x', '.'],
             root,         
             channel
         );
-    }
+    channel.appendLine('All structure types and functions are indexed...');
+    channel.appendLine('Indexing global variables...');
+    await runGlobalCommand(
+            globalCmd,
+            ['-sx', '.'],
+            root,         
+            channel
+        );
+    channel.appendLine('All global variables are indexed...');
+}
 
-async function cleanGtagsFiles(root) {
+async function cleanGtagsFiles(root, channel) {
+    channel.appendLine('Cleaning existing Tags DataBase...');
     const gtagsFiles = ['GTAGS', 'GRTAGS', 'GPATH'];
     for (const file of gtagsFiles) {
         const filePath = path.join(root, file);
@@ -195,19 +204,24 @@ async function parseAndStoreTags(channel, root) {
   await preflight();
   channel.show();
   const start = performance.now();
-  channel.appendLine('Cleaning existing Tags DataBase...');
-  await cleanGtagsFiles(root);
+  await cleanGtagsFiles(root, channel);
   await cleanDB();
   await openDB();
-  channel.appendLine('Running Gtags...');
-  channel.appendLine('Finding Number of files to be indexed...');
   await parseToTagsFile(root, channel);
-  channel.appendLine('Creating Tags DataBase...');
-  await assignIdsToVariables();
+  await assignIdsToVariables(channel);
   channel.appendLine('Post processing symbols...');
   channel.appendLine('Tags DataBase created successfully...');
   const sec = ((performance.now() - start) / 1000).toFixed(3);
-  channel.appendLine(`Elapsed: ${sec} seconds`);
+    if (sec < 60) {
+        const secRounded = Math.floor(sec);
+        const millisec = Math.round((sec % 1) * 1000);
+        channel.appendLine(`Elapsed: ${secRounded} seconds ${millisec} ms`);
+    } else {
+        const mins = Math.floor(sec / 60);
+        const remainingSec = Math.floor(sec % 60);
+        const millisec = Math.round((sec % 1) * 1000);
+        channel.appendLine(`Elapsed: ${mins} minutes ${remainingSec} seconds ${millisec} ms`);
+    }
 }
 
 module.exports = {
