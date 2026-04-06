@@ -148,6 +148,7 @@ async function parseToTagsFile(root, channel) {
             channel
         );
     channel.appendLine('All structure types and functions are indexed...');
+    /*
     channel.appendLine('Indexing global variables...');
     await runGlobalCommand(
             globalCmd,
@@ -156,6 +157,7 @@ async function parseToTagsFile(root, channel) {
             channel
         );
     channel.appendLine('All global variables are indexed...');
+    */
 }
 
 async function cleanGtagsFiles(root, channel) {
