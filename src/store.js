@@ -2,9 +2,9 @@ const fs = require('fs').promises;
 const fssync = require('fs');
 const path = require('path');
 const readline = require('readline');
-const {spawn} = require('child_process');
+const { spawn } = require('child_process');
 const vscode = require('vscode');
-const {getDB, initDB, cleanDB, closeDB, openDB, batchWriteIntoDB, assignIdsToVariables} = require('./dbutils');
+const { getDB, initDB, cleanDB, closeDB, openDB, batchWriteIntoDB, assignIdsToVariables } = require('./database');
 const { performance } = require('perf_hooks');
 const config = vscode.workspace.getConfiguration('gtags-code');
 const globalCmd = config.get('globalCmd');
@@ -13,7 +13,7 @@ const gtagsCmd = config.get('gtagsCmd');
 const exts = new Set(['.c', '.cpp', '.h', '.hpp', '.cc', '.hh', '.cxx', '.hxx']);
 
 async function getSourceFiles(dir, root, out = []) {
-    for (const e of await fs.readdir(dir, {withFileTypes: true})) {
+    for (const e of await fs.readdir(dir, { withFileTypes: true })) {
         const fullPath = path.join(dir, e.name);
         if (e.isDirectory()) {
             await getSourceFiles(fullPath, root, out);
@@ -30,7 +30,7 @@ async function runGtags(root, channel) {
     const total = files.length;
     channel.appendLine(`Found ${total} source files(s) to index...`);
     channel.appendLine('Running Gtags...');
-    const p = spawn(gtagsCmd, ['-v', '-f', '-'], {cwd: root});
+    const p = spawn(gtagsCmd, ['-v', '-f', '-'], { cwd: root });
 
     let processed = 0;
     const rl = readline.createInterface({
@@ -45,7 +45,7 @@ async function runGtags(root, channel) {
         if (processed % 500 === 0) {
             channel.appendLine(`${processed}/${total} files indexed...`);
         }
-        if(processed === total) {
+        if (processed === total) {
             channel.appendLine(`${processed}/${total} files indexed...`);
             channel.appendLine('Finalizing file indexing...');
         }
@@ -133,7 +133,7 @@ async function processGtagsStream(gtagsStream, channel) {
 }
 
 async function runGlobalCommand(cmd, args, cwd, channel) {
-    const child = spawn(cmd, args, {cwd});
+    const child = spawn(cmd, args, { cwd });
     await processGtagsStream(child.stdout, channel);
 }
 
@@ -142,11 +142,11 @@ async function parseToTagsFile(root, channel) {
     channel.appendLine('File indexing completed...');
     channel.appendLine('Indexing structure types and functions...');
     await runGlobalCommand(
-            globalCmd,
-            ['-x', '.'],
-            root,         
-            channel
-        );
+        globalCmd,
+        ['-x', '.'],
+        root,
+        channel
+    );
     channel.appendLine('All structure types and functions are indexed...');
     /*
     channel.appendLine('Indexing global variables...');
@@ -166,54 +166,54 @@ async function cleanGtagsFiles(root, channel) {
     for (const file of gtagsFiles) {
         const filePath = path.join(root, file);
         if (fssync.existsSync(filePath)) {
-            await fs.rm(filePath, {force: true});
+            await fs.rm(filePath, { force: true });
         }
     }
 }
 
 function getVersionAsync(cmd, versionArgs = ["--version"]) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(cmd, versionArgs, { shell: true });
+    return new Promise((resolve, reject) => {
+        const child = spawn(cmd, versionArgs, { shell: true });
 
-    let output = "";
+        let output = "";
 
-    child.stdout.on("data", d => output += d);
-    child.stderr.on("data", d => output += d);
+        child.stdout.on("data", d => output += d);
+        child.stderr.on("data", d => output += d);
 
-    child.on("error", () => {
-      reject(new Error(`Please install gtags or provide gtags/global path in settings `));
+        child.on("error", () => {
+            reject(new Error(`Please install gtags or provide gtags/global path in settings `));
+        });
+
+        child.on("close", (code) => {
+            if (code === 0 || code === 1) {
+                resolve(output.trim());
+            } else {
+                reject(new Error(`Please install gtags or provide gtags/global path in settings `));
+            }
+        });
     });
-
-    child.on("close", (code) => {
-      if (code === 0 || code === 1) {
-        resolve(output.trim());
-      } else {
-        reject(new Error(`Please install gtags or provide gtags/global path in settings `));
-      }
-    });
-  });
 }
 
 async function preflight() {
-  const config = vscode.workspace.getConfiguration('gtags-code');
-  const globalCmd = config.get('globalCmd');
-  const gtagsCmd = config.get('gtagsCmd');
-  await getVersionAsync(globalCmd);
-  await getVersionAsync(gtagsCmd);
+    const config = vscode.workspace.getConfiguration('gtags-code');
+    const globalCmd = config.get('globalCmd');
+    const gtagsCmd = config.get('gtagsCmd');
+    await getVersionAsync(globalCmd);
+    await getVersionAsync(gtagsCmd);
 }
 
 async function parseAndStoreTags(channel, root) {
-  await preflight();
-  channel.show();
-  const start = performance.now();
-  await cleanGtagsFiles(root, channel);
-  await cleanDB();
-  await openDB();
-  await parseToTagsFile(root, channel);
-  await assignIdsToVariables(channel);
-  channel.appendLine('Post processing symbols...');
-  channel.appendLine('Tags DataBase created successfully...');
-  const sec = ((performance.now() - start) / 1000).toFixed(3);
+    await preflight();
+    channel.show();
+    const start = performance.now();
+    await cleanGtagsFiles(root, channel);
+    await cleanDB();
+    await openDB();
+    await parseToTagsFile(root, channel);
+    await assignIdsToVariables(channel);
+    channel.appendLine('Post processing symbols...');
+    channel.appendLine('Tags DataBase created successfully...');
+    const sec = ((performance.now() - start) / 1000).toFixed(3);
     if (sec < 60) {
         const secRounded = Math.floor(sec);
         const millisec = Math.round((sec % 1) * 1000);

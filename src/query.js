@@ -1,5 +1,5 @@
 const { spawn } = require('child_process');
-const {getValueFromDb, getDB, batchWriteIntoDB, searchQuery, resetSearchMap} = require('./dbutils');
+const { getValueFromDb, getDB, batchWriteIntoDB, searchQuery, resetSearchMap } = require('./database');
 const vscode = require('vscode');
 const fs = require('fs');
 const readline = require('readline');
@@ -8,8 +8,8 @@ const path = require('path');
 async function getPattern(filePath, name, canceller, pattern, matchWhole) {
     const fileStream = fs.createReadStream(filePath);
     const rl = readline.createInterface({
-    input: fileStream,
-    crlfDelay: Infinity
+        input: fileStream,
+        crlfDelay: Infinity
     });
     let lno = 0
     let charPos = 0
@@ -20,10 +20,10 @@ async function getPattern(filePath, name, canceller, pattern, matchWhole) {
             found = true
             charPos = Math.max(line.indexOf(name), 0)
             console.log(`gtags-code: Found '${pattern}' at ${lno}:${charPos}`)
-            return {retval:false, found, lno, charPos}
+            return { retval: false, found, lno, charPos }
         } else if (canceller && canceller.isCancellationRequested) {
             console.log('gtags-code: Cancelled pattern searching')
-            return {retval:false, found, lno, charPos}
+            return { retval: false, found, lno, charPos }
         }
     }
 }
@@ -61,7 +61,7 @@ async function getlnoPattern(entry, canceller) {
 }
 
 async function getFilelno(document, sel) {
-    if(!sel) {
+    if (!sel) {
         return new vscode.Selection(0, 0, 0, 0);
     }
     let pos = sel.end.translate(0, 1)
@@ -151,52 +151,52 @@ async function jumputil(editor, context, key) {
 
 
 async function handleSearchTagsCommand(context) {
-  const quickPick = vscode.window.createQuickPick();
-  quickPick.placeholder = 'Search tags...';
-  quickPick.matchOnDescription = true;
-  quickPick.filterItems = false;
-  quickPick.matchOnDescription = false;
-  quickPick.matchOnDetail = false;
+    const quickPick = vscode.window.createQuickPick();
+    quickPick.placeholder = 'Search tags...';
+    quickPick.matchOnDescription = true;
+    quickPick.filterItems = false;
+    quickPick.matchOnDescription = false;
+    quickPick.matchOnDetail = false;
 
-  quickPick.onDidChangeValue(async (input) => {
-    if (!input) {
-      quickPick.items = [];
-      return;
-    }
-    const items = await searchQuery(input);
-    quickPick.items = items.map(r => ({
-    label: r.label,
-    description: r.description,
-    alwaysShow: true
-  }));
-  });
+    quickPick.onDidChangeValue(async (input) => {
+        if (!input) {
+            quickPick.items = [];
+            return;
+        }
+        const items = await searchQuery(input);
+        quickPick.items = items.map(r => ({
+            label: r.label,
+            description: r.description,
+            alwaysShow: true
+        }));
+    });
 
-  quickPick.onDidAccept(() => {
-    const selected = quickPick.selectedItems[0];
-    if (selected) {
-      jumputil(vscode.window.activeTextEditor, context, selected.label)
-    }
-    quickPick.hide();
-    resetSearchMap();
-  });
+    quickPick.onDidAccept(() => {
+        const selected = quickPick.selectedItems[0];
+        if (selected) {
+            jumputil(vscode.window.activeTextEditor, context, selected.label)
+        }
+        quickPick.hide();
+        resetSearchMap();
+    });
 
-  quickPick.onDidHide(() => quickPick.dispose());
-  quickPick.show();
+    quickPick.onDidHide(() => quickPick.dispose());
+    quickPick.show();
 }
 
 async function jump2tag(context) {
-  const editor = vscode.window.activeTextEditor
-  const tag = getTag(editor)
-  return jumputil(editor, context, tag)
+    const editor = vscode.window.activeTextEditor
+    const tag = getTag(editor)
+    return jumputil(editor, context, tag)
 }
 
 async function getReferencesInternal(context, editor) {
-  const tag = getTag(editor);
-  const terminal = vscode.window.createTerminal(`${tag} - References`);
-  terminal.show();
-  const config = vscode.workspace.getConfiguration('gtags-code');
-  const globalCmd = config.get('globalCmd');
-  terminal.sendText(`${globalCmd} --result=grep -xr ${tag}`);
+    const tag = getTag(editor);
+    const terminal = vscode.window.createTerminal(`${tag} - References`);
+    terminal.show();
+    const config = vscode.workspace.getConfiguration('gtags-code');
+    const globalCmd = config.get('globalCmd');
+    terminal.sendText(`${globalCmd} --result=grep -xr ${tag}`);
 }
 
-module.exports = {jump2tag , getReferencesInternal, handleSearchTagsCommand};
+module.exports = { jump2tag, getReferencesInternal, handleSearchTagsCommand };
