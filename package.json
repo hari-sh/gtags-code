@@ -59,6 +59,10 @@
       {
         "command": "extension.getCallers",
         "title": "GTags: Get Callers"
+      },
+      {
+        "command": "extension.getSymbolReferences",
+        "title": "GTags: Get Symbol References"
       }
     ],
     "menus": {
@@ -75,6 +79,11 @@
         },
         {
           "command": "extension.getCallers",
+          "when": "editorTextFocus",
+          "group": "navigation"
+        },
+        {
+          "command": "extension.getSymbolReferences",
           "when": "editorTextFocus",
           "group": "navigation"
         }

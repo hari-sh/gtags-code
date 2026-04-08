@@ -199,4 +199,35 @@ async function getReferencesInternal(context, editor) {
     terminal.sendText(`${globalCmd} --result=grep -xr ${tag}`);
 }
 
-module.exports = { jump2tag, getReferencesInternal, handleSearchTagsCommand };
+async function getSymbolReferencesInternal(context, editor, symbol) {
+    if (!symbol || !symbol.trim()) {
+        vscode.window.showErrorMessage('No symbol selected');
+        return;
+    }
+    
+    // Extract last property after the final -> or . delimiter
+    const match = symbol.match(/((?:->|\.)(\w+))$/);
+    if (!match) {
+        vscode.window.showErrorMessage('Invalid symbol format');
+        return;
+    }
+    
+    const lastProperty = match[2];
+    const precedingPartWithDelimiter = symbol.substring(0, symbol.length - lastProperty.length);
+    
+    const terminal = vscode.window.createTerminal(`${symbol} - Symbol References`);
+    terminal.show();
+    const config = vscode.workspace.getConfiguration('gtags-code');
+    const globalCmd = config.get('globalCmd');
+    
+    // Build command: global --result=grep -xs lastProperty | grep "preceding_part->"
+    let cmd = `${globalCmd} --result=grep -xs ${lastProperty}`;
+    
+    if (precedingPartWithDelimiter) {
+        cmd += ` | grep '${precedingPartWithDelimiter}'`;
+    }
+    
+    terminal.sendText(cmd);
+}
+
+module.exports = { jump2tag, getReferencesInternal, getSymbolReferencesInternal, handleSearchTagsCommand }; 

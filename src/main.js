@@ -1,7 +1,7 @@
 const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs').promises;
-const { jump2tag, getReferencesInternal, handleSearchTagsCommand } = require('./query');
+const { jump2tag, getReferencesInternal, getSymbolReferencesInternal, handleSearchTagsCommand } = require('./query');
 const { initDB, closeDB } = require('./database');
 const { parseAndStoreTags } = require('./store');
 const channel = vscode.window.createOutputChannel('gtags-code');
@@ -34,6 +34,31 @@ async function getCallers(context) {
   await createPreview(context);
 }
 
+async function getSymbolReferences(context) {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    vscode.window.showErrorMessage('No active editor');
+    return;
+  }
+  const document = editor.document;
+  
+  // If there's a selection, use it; otherwise use the word at cursor
+  let symbol = '';
+  if (!editor.selection.isEmpty) {
+    symbol = document.getText(editor.selection);
+  } else {
+    const position = editor.selection.active;
+    const wordRange = document.getWordRangeAtPosition(position);
+    if (!wordRange) {
+      vscode.window.showErrorMessage('No symbol found at cursor');
+      return;
+    }
+    symbol = document.getText(wordRange);
+  }
+  
+  await getSymbolReferencesInternal(context, editor, symbol);
+}
+
 module.exports = {
   activate(context) {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -46,6 +71,7 @@ module.exports = {
     context.subscriptions.push(vscode.commands.registerCommand('extension.jumpTag', goToDefinition));
     context.subscriptions.push(vscode.commands.registerCommand('extension.getReferences', getReferences));
     context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => getCallers(context)));
+    context.subscriptions.push(vscode.commands.registerCommand('extension.getSymbolReferences', () => getSymbolReferences(context)));
   },
   deactivate() {
     closeDB();
