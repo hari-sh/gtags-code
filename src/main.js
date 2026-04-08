@@ -21,7 +21,7 @@ async function searchTags(context) {
 }
 
 async function goToDefinition(context) {
-  const editor = vscode.window.activeTextEditor
+  const editor = vscode.window.activeTextEditor;
   await jump2tag(context, editor);
 }
 

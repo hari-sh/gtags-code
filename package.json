@@ -31,6 +31,11 @@
           "type": "string",
           "default": "gtags",
           "description": "Path to gtags executable."
+        },
+        "gtags-code.ctagsCmd": {
+          "type": "string",
+          "default": "ctags",
+          "description": "Path to ctags executable. If not set, variable indexing will be skipped."
         }
       }
     },

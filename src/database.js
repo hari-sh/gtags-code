@@ -18,6 +18,7 @@ if (__dirname.includes('src')) {
 }
 
 const fs = require('fs').promises;
+const {tokenize} = require('./tokens');
 
 let db;
 let dbpath;
@@ -114,17 +115,6 @@ async function batchWriteIntoDB(data) {
   }
 }
 
-const tokenize = (name) => {
-  return name
-    .replace(/\.[a-zA-Z0-9]+$/, '')         // remove trailing file extensions like .c, .h, .cpp
-    .replace(/([a-z])([A-Z])/g, '$1 $2')    // camelCase → split
-    .replace(/[_\-\.\/]+/g, ' ')            // snake_case, kebab-case, dot-separated, paths
-    .replace(/[^a-zA-Z0-9 ]/g, '')          // remove other symbols
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
-};
-
 function getUnion(group) {
   const union = new Set();
   for (const arr of group) {
@@ -194,35 +184,4 @@ const searchQuery = async (query) => {
   return results;
 };
 
-
-const assignIdsToVariables = async (channel) => {
-  channel.appendLine('Creating Tags DataBase...');
-  const alltags = [];
-  for await (const [key, value] of db.iterator({ gte: 'tag:', lt: 'tag;' })) {
-    alltags.push(key.slice(4));
-  }
-  alltags.sort((a,b) => a.length - b.length);
-  
-  const idbatch = db.batch();
-  const tokenMap = new Map();
-  for(let ind = 0; ind < alltags.length; ind++) {
-    const varname = alltags[ind];
-    const varid = ind + 1;
-    idbatch.put(`id:${varid}`, varname);
-    for (const token of tokenize(varname)) {
-      if (!tokenMap.has(token)) tokenMap.set(token, new Set());
-      tokenMap.get(token).add(varid);
-    }
-  }
-  await idbatch.write();
-
-  const tokenbatch = db.batch();
-  for (const [token, ids] of tokenMap) {
-    tokenbatch.put(`token:${token}`, Array.from(ids));
-  }
-  await tokenbatch.write();
-  db.close();
-  db.open();
-};
-
-module.exports = { initDB, getDB, openDB, cleanDB, closeDB, getValueFromDb, batchWriteIntoDB, searchQuery, assignIdsToVariables, resetSearchMap };
+module.exports = { initDB, getDB, openDB, cleanDB, closeDB, getValueFromDb, batchWriteIntoDB, searchQuery, resetSearchMap };
