@@ -5,7 +5,7 @@ const { jump2tag, getReferencesInternal, getSymbolReferencesInternal, handleSear
 const { initDB, closeDB } = require('./database');
 const { parseAndStoreTags } = require('./store');
 const { createPreview } = require('./callers');
-const { ensureCtagsAvailable } =  require('./preflight');
+const { ensureCtagsAvailable, preflight } =  require('./preflight');
 
 const channel = vscode.window.createOutputChannel('gtags-code');
 const config = vscode.workspace.getConfiguration('gtags-code');

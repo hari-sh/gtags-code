@@ -37,7 +37,7 @@ function getVersionAsync(cmd, versionArgs = ["--version"]) {
     });
 }
 
-function ensureCtagsAvailable() {
+function ensureCtagsAvailable(ctagsCmd) {
     return new Promise((resolve) => {
         if (!ctagsCmd) {
             resolve(false);
