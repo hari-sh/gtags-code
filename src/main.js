@@ -4,8 +4,17 @@ const fs = require('fs').promises;
 const { jump2tag, getReferencesInternal, getSymbolReferencesInternal, handleSearchTagsCommand } = require('./query');
 const { initDB, closeDB } = require('./database');
 const { parseAndStoreTags } = require('./store');
-const channel = vscode.window.createOutputChannel('gtags-code');
 const { createPreview } = require('./callers');
+const { ensureCtagsAvailable } =  require('./preflight');
+
+const channel = vscode.window.createOutputChannel('gtags-code');
+const config = vscode.workspace.getConfiguration('gtags-code');
+
+const exeCmds = {
+  global: config.get('globalCmd') || 'global',
+  ctags: config.get('ctagsCmd') || 'ctags',
+  gtags: config.get('gtagsCmd') || 'gtags'
+};
 
 async function storeTags() {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -13,7 +22,12 @@ async function storeTags() {
     vscode.window.showErrorMessage('No workspace folder open');
     return;
   }
-  await parseAndStoreTags(channel, workspaceFolder.uri.fsPath);
+  await preflight(exeCmds);
+  const ctagsAvailable = await ensureCtagsAvailable(exeCmds.ctags);
+  if(!ctagsAvailable) {
+    exeCmds.ctags = null;
+  }
+  await parseAndStoreTags(channel, workspaceFolder.uri.fsPath, exeCmds);
 }
 
 async function searchTags(context) {

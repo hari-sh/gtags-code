@@ -207,7 +207,14 @@ async function getSymbolReferencesInternal(context, editor, symbol) {
     
     // Extract last property after the final -> or . delimiter
     const match = symbol.match(/((?:->|\.)(\w+))$/);
-    if (!match) {
+    let lasProperty, precedingPartWithDelimiter;
+    if (match) {
+        lastProperty = match[2];
+        precedingPartWithDelimiter = symbol.substring(0, symbol.length - lastProperty.length);
+    } else if (/^\w+$/.test(symbol)) {
+        lastProperty = symbol;
+        precedingPartWithDelimiter = '';
+    } else {
         vscode.window.showErrorMessage('Invalid symbol format');
         return;
     }
@@ -221,13 +228,16 @@ async function getSymbolReferencesInternal(context, editor, symbol) {
     const globalCmd = config.get('globalCmd');
     
     // Build command: global --result=grep -xs lastProperty | grep "preceding_part->"
-    let cmd = `${globalCmd} --result=grep -xs ${lastProperty}`;
+    let cmd1 = `${globalCmd} --result=grep -xs ${lastProperty}`;
+    let cmd2 = `${globalCmd} --result=grep -r ${lastProperty}`;
     
     if (precedingPartWithDelimiter) {
-        cmd += ` | grep '${precedingPartWithDelimiter}'`;
+        cmd1 += ` | grep '${precedingPartWithDelimiter}'`;
+        cmd2 += ` | grep '${precedingPartWithDelimiter}'`;
     }
     
-    terminal.sendText(cmd);
+    terminal.sendText(cmd1);
+    terminal.sendText(cmd2);
 }
 
 module.exports = { jump2tag, getReferencesInternal, getSymbolReferencesInternal, handleSearchTagsCommand }; 

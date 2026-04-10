@@ -1,8 +1,3 @@
-const vscode = require('vscode');
-const config = vscode.workspace.getConfiguration('gtags-code');
-const globalCmd = config.get('globalCmd');
-const gtagsCmd = config.get('gtagsCmd');
-const ctagsCmd = config.get('ctagsCmd');
 const { spawn } = require('child_process');
 const path = require('path');
 const fssync = require('fs');
@@ -71,9 +66,9 @@ function ensureCtagsAvailable() {
     });
 }
 
-async function preflight() {
-    await getVersionAsync(globalCmd);
-    await getVersionAsync(gtagsCmd);
+async function preflight(exeCmds) {
+    await getVersionAsync(exeCmds.global);
+    await getVersionAsync(exeCmds.gtags);
 }
 
 module.exports = {

@@ -3,15 +3,10 @@ const fssync = require('fs');
 const path = require('path');
 const readline = require('readline');
 const { spawn } = require('child_process');
-const vscode = require('vscode');
 const { getDB, initDB, cleanDB, closeDB, openDB, batchWriteIntoDB } = require('./database');
 const { preflight, cleanGtagsFiles, ensureCtagsAvailable } = require('./preflight');
 const { tokenize } = require('./tokens');
 const { performance } = require('perf_hooks');
-const config = vscode.workspace.getConfiguration('gtags-code');
-const globalCmd = config.get('globalCmd');
-const gtagsCmd = config.get('gtagsCmd');
-const ctagsCmd = config.get('ctagsCmd');
 
 const exts = new Set(['.c', '.cpp', '.h', '.hpp', '.cc', '.hh', '.cxx', '.hxx']);
 
@@ -27,19 +22,40 @@ async function getSourceFiles(dir, root, out = []) {
     return out;
 }
 
-async function runCtags(root, files, channel) {
-    const ctagsAvailable = await ensureCtagsAvailable();
-    if (!ctagsAvailable) {
+async function runCtags(root, files, channel, ctagsCmd) {
+    if (!ctagsCmd) {
         channel.appendLine('Ctags path is not enabled. Skipping variable indexing...');
         return;
     }
     channel.appendLine('Running Ctags...');
-    const p = spawn(ctagsCmd, ['-L', '-', '-f', '-', '--kinds-C=v', '--kinds-C++=v'], { cwd: root });
+    const total = files.length;
+    const p = spawn(ctagsCmd, ['-L', '-', '-f', '-', '--kinds-C=v', '--kinds-C++=v', '--verbose=yes'], { cwd: root });
 
     for (const f of files) {
         p.stdin.write(f + '\n');
     }
     p.stdin.end();
+
+    let processed = 0;
+    const rlerr = readline.createInterface({
+        input: p.stderr,
+        crlfDelay: Infinity
+    });
+    rlerr.on('line', (line) => {
+        if (!line.trim()) {
+            return;
+        }
+        if(line.startsWith('OPENING'))  {
+            processed++;
+            if (processed % 500 === 0) {
+                channel.appendLine(`${processed}/${total} files processed by ctags...`);
+            }
+            if (processed === total) {
+                channel.appendLine(`${processed}/${total} files processed by ctags...`);
+                channel.appendLine('Finalizing variable indexing...');
+            }
+        }
+    });
 
     const rl = readline.createInterface({
         input: p.stdout,
@@ -70,7 +86,7 @@ async function runCtags(root, files, channel) {
             }
 
             // Extract pattern from /^pattern$/ format, keeping ^ and $
-            const pattern = parts[2].replace(/^\/(.*)\/$/, '$1');
+            const pattern = parts[2].replace(/^[^/]*\/(.*)\/[^/]*$/, '$1');
             
             batchOps.push({
                 type: 'put',
@@ -101,7 +117,7 @@ async function runCtags(root, files, channel) {
     channel.appendLine('Variable indexing completed...');
 }
 
-async function runGtags(root, files, channel) {
+async function runGtags(root, files, channel, gtagsCmd) {
     const total = files.length;
     channel.appendLine('Running Gtags...');
     const p = spawn(gtagsCmd, ['-v', '-f', '-'], { cwd: root });
@@ -141,7 +157,7 @@ async function runGtags(root, files, channel) {
     });
 }
 
-async function runGlobal(root, channel) {
+async function runGlobal(root, channel, globalCmd) {
     channel.appendLine('Indexing structure types and functions...');
     const child = spawn(globalCmd, ['-x', '.'], { cwd: root });
     const rl = readline.createInterface({
@@ -212,13 +228,13 @@ async function runGlobal(root, channel) {
     channel.appendLine('All structure types and functions are indexed...');
 }
 
-async function parseToTagsFile(root, channel) {
+async function parseToTagsFile(root, channel, exeCmds) {
     channel.appendLine('Finding Number of files to be indexed...');
     const files = await getSourceFiles(root, root);
     channel.appendLine(`Found ${files.length} source files(s) to index...`);
-    await runGtags(root, files, channel);
-    await runCtags(root, files, channel);
-    await runGlobal(root, channel);
+    await runGtags(root, files, channel, exeCmds.gtags);
+    await runCtags(root, files, channel, exeCmds.ctags);
+    await runGlobal(root, channel, exeCmds.global);
 }
 
 async function assignIdsToVariables (channel) {
@@ -252,14 +268,13 @@ async function assignIdsToVariables (channel) {
   db.open();
 };
 
-async function parseAndStoreTags(channel, root) {
-    await preflight();
+async function parseAndStoreTags(channel, root, exeCmds) {
     channel.show();
     const start = performance.now();
     await cleanGtagsFiles(root, channel);
     await cleanDB();
     await openDB();
-    await parseToTagsFile(root, channel);
+    await parseToTagsFile(root, channel, exeCmds);
     await assignIdsToVariables(channel);
     channel.appendLine('Post processing symbols...');
     channel.appendLine('Tags DataBase created successfully...');

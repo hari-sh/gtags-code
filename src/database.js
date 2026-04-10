@@ -1,5 +1,4 @@
 const path = require('path');
-const vscode = require('vscode');
 
 let ClassicLevel;
 
