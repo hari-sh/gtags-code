@@ -219,9 +219,6 @@ async function getSymbolReferencesInternal(context, editor, symbol) {
         return;
     }
     
-    const lastProperty = match[2];
-    const precedingPartWithDelimiter = symbol.substring(0, symbol.length - lastProperty.length);
-    
     const terminal = vscode.window.createTerminal(`${symbol} - Symbol References`);
     terminal.show();
     const config = vscode.workspace.getConfiguration('gtags-code');
