@@ -135,10 +135,10 @@ async function runGtags(root, files, channel, gtagsCmd) {
         }
         processed++;
         if (processed % 500 === 0) {
-            channel.appendLine(`${processed}/${total} files indexed...`);
+            channel.appendLine(`${processed}/${total} files processed by gtags...`);
         }
         if (processed === total) {
-            channel.appendLine(`${processed}/${total} files indexed...`);
+            channel.appendLine(`${processed}/${total} files processed by gtags...`);
             channel.appendLine('Finalizing file indexing...');
         }
     });
@@ -150,7 +150,6 @@ async function runGtags(root, files, channel, gtagsCmd) {
     return new Promise((resolve, reject) => {
         p.on('close', (code) => {
             if (code === 0) {
-                channel.appendLine('File indexing completed...');
                 resolve();
             } else {
                 reject(new Error(`gtags exited with code ${code}`));
@@ -241,7 +240,7 @@ async function parseToTagsFile(root, channel, exeCmds) {
     await runGtags(root, files, channel, exeCmds.gtags);
     const globalTagNames = await runGlobal(root, channel, exeCmds.global);
     const ctagsTagNames = await ctagsPromise;
-    const allTagNames = new Set([...ctagsTagNames, ...globalTagNames]);
+    const allTagNames = [...ctagsTagNames, ...globalTagNames];
     return allTagNames;
 }
 
