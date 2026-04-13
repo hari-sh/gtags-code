@@ -66,7 +66,7 @@ async function runCtags(root, files, channel, ctagsCmd) {
     const db = getDB();
     const batchSize = 200000;
     let symbols = 0;
-    let batchOps = [];
+    let batchOps = db.batch();
 
     for await (const line of rl) {
         try {
@@ -102,7 +102,7 @@ async function runCtags(root, files, channel, ctagsCmd) {
                 symbols += batchOps.length;
                 channel.appendLine(`${symbols} variables processed...`);
                 await batchWriteIntoDB(batchOps);
-                batchOps = [];
+                batchOps = db.batch();
             }
         } catch (err) {
             // **Critical safety**: catch ANY other errors but keep going
@@ -168,7 +168,7 @@ async function runGlobal(root, channel, globalCmd) {
     const db = getDB();
     const batchSize = 200000;
     let symbols = 0;
-    let batchOps = [];
+    let batchOps = db.batch();
     const tagNames = new Set();
 
     for await (const line of rl) {
@@ -214,7 +214,7 @@ async function runGlobal(root, channel, globalCmd) {
                 symbols += batchOps.length;
                 channel.appendLine(`${symbols} symbols processed...`);
                 await batchWriteIntoDB(batchOps);
-                batchOps = [];
+                batchOps = db.batch();
             }
         } catch (err) {
             // **Critical safety**: catch ANY other errors but keep going
