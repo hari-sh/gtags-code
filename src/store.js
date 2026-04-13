@@ -139,7 +139,6 @@ async function runGtags(root, files, channel, gtagsCmd) {
         }
         if (processed === total) {
             channel.appendLine(`${processed}/${total} files processed by gtags...`);
-            channel.appendLine('Finalizing file indexing...');
         }
     });
 
