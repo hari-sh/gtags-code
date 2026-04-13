@@ -29,6 +29,7 @@ async function runCtags(root, files, channel, ctagsCmd) {
     }
     channel.appendLine('Running Ctags...');
     const total = files.length;
+    const tagNames = new Set();
     const p = spawn(ctagsCmd, ['-L', '-', '-f', '-', '--kinds-C=v', '--kinds-C++=v', '--verbose=yes'], { cwd: root });
 
     for (const f of files) {
@@ -87,7 +88,7 @@ async function runCtags(root, files, channel, ctagsCmd) {
 
             // Extract pattern from /^pattern$/ format, keeping ^ and $
             const pattern = parts[2].replace(/^[^/]*\/(.*)\/[^/]*$/, '$1');
-            
+            tagNames.add(tagName);
             batchOps.push({
                 type: 'put',
                 key: `tag:${tagName}`,
@@ -115,6 +116,7 @@ async function runCtags(root, files, channel, ctagsCmd) {
         channel.appendLine(`${symbols} variables processed...`);
     }
     channel.appendLine('Variable indexing completed...');
+    return tagNames;
 }
 
 async function runGtags(root, files, channel, gtagsCmd) {
@@ -169,6 +171,7 @@ async function runGlobal(root, channel, globalCmd) {
     const batchSize = 200000;
     let symbols = 0;
     let batchOps = [];
+    const tagNames = new Set();
 
     for await (const line of rl) {
         try {
@@ -198,6 +201,7 @@ async function runGlobal(root, channel, globalCmd) {
 
             const pattern = '^' + line.slice(patternStartIndex + file.length + 1).trim() + '$';
 
+            tagNames.add(tagName);
             batchOps.push({
                 type: 'put',
                 key: `tag:${tagName}`,
@@ -226,30 +230,30 @@ async function runGlobal(root, channel, globalCmd) {
         channel.appendLine(`${symbols} symbols processed...`);
     }
     channel.appendLine('All structure types and functions are indexed...');
+    return tagNames;
 }
 
 async function parseToTagsFile(root, channel, exeCmds) {
     channel.appendLine('Finding Number of files to be indexed...');
     const files = await getSourceFiles(root, root);
     channel.appendLine(`Found ${files.length} source files(s) to index...`);
+    const ctagsPromise = runCtags(root, files, channel, exeCmds.ctags);
     await runGtags(root, files, channel, exeCmds.gtags);
-    await runCtags(root, files, channel, exeCmds.ctags);
-    await runGlobal(root, channel, exeCmds.global);
+    const globalTagNames = await runGlobal(root, channel, exeCmds.global);
+    const ctagsTagNames = await ctagsPromise;
+    const allTagNames = new Set([...ctagsTagNames, ...globalTagNames]);
+    return allTagNames;
 }
 
-async function assignIdsToVariables (channel) {
+async function assignIdsToVariables (channel, allTags) {
   const db = getDB();
   channel.appendLine('Creating Tags DataBase...');
-  const alltags = [];
-  for await (const [key, value] of db.iterator({ gte: 'tag:', lt: 'tag;' })) {
-    alltags.push(key.slice(4));
-  }
-  alltags.sort((a,b) => a.length - b.length);
+  allTags.sort((a,b) => a.length - b.length);
   
   const idbatch = db.batch();
   const tokenMap = new Map();
-  for(let ind = 0; ind < alltags.length; ind++) {
-    const varname = alltags[ind];
+  for(let ind = 0; ind < allTags.length; ind++) {
+    const varname = allTags[ind];
     const varid = ind + 1;
     idbatch.put(`id:${varid}`, varname);
     for (const token of tokenize(varname)) {
@@ -274,8 +278,8 @@ async function parseAndStoreTags(channel, root, exeCmds) {
     await cleanGtagsFiles(root, channel);
     await cleanDB();
     await openDB();
-    await parseToTagsFile(root, channel, exeCmds);
-    await assignIdsToVariables(channel);
+    const allTagNames = await parseToTagsFile(root, channel, exeCmds);
+    await assignIdsToVariables(channel, allTagNames);
     channel.appendLine('Post processing symbols...');
     channel.appendLine('Tags DataBase created successfully...');
     const sec = ((performance.now() - start) / 1000).toFixed(3);
