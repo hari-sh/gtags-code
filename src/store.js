@@ -7,6 +7,7 @@ const { getDB, initDB, cleanDB, closeDB, openDB, batchWriteIntoDB } = require('.
 const { preflight, cleanGtagsFiles, ensureCtagsAvailable } = require('./preflight');
 const { tokenize } = require('./tokens');
 const { performance } = require('perf_hooks');
+const { elapsedTime } = require('./utils');
 
 const exts = new Set(['.c', '.cpp', '.h', '.hpp', '.cc', '.hh', '.cxx', '.hxx']);
 
@@ -28,8 +29,6 @@ async function runCtags(root, files, channel, ctagsCmd) {
         return;
     }
     channel.appendLine('Running Ctags...');
-    const total = files.length;
-    const tagNames = new Set();
     const p = spawn(ctagsCmd, ['-L', '-', '-f', '-', '--kinds-C=v', '--kinds-C++=v', '--verbose=yes'], { cwd: root });
 
     for (const f of files) {
@@ -49,10 +48,10 @@ async function runCtags(root, files, channel, ctagsCmd) {
         if(line.startsWith('OPENING'))  {
             processed++;
             if (processed % 500 === 0) {
-                channel.appendLine(`${processed}/${total} files processed by ctags...`);
+                channel.appendLine(`${processed}/${files.length} files processed by ctags...`);
             }
-            if (processed === total) {
-                channel.appendLine(`${processed}/${total} files processed by ctags...`);
+            if (processed === files.length) {
+                channel.appendLine(`${processed}/${files.length} files processed by ctags...`);
                 channel.appendLine('Finalizing variable indexing...');
             }
         }
@@ -66,7 +65,7 @@ async function runCtags(root, files, channel, ctagsCmd) {
     const db = getDB();
     const batchSize = 200000;
     let symbols = 0;
-    let batchOps = db.batch();
+    let batchOps = [];
 
     for await (const line of rl) {
         try {
@@ -88,21 +87,19 @@ async function runCtags(root, files, channel, ctagsCmd) {
 
             // Extract pattern from /^pattern$/ format, keeping ^ and $
             const pattern = parts[2].replace(/^[^/]*\/(.*)\/[^/]*$/, '$1');
-            tagNames.add(tagName);
             batchOps.push({
                 type: 'put',
                 key: `tag:${tagName}`,
                 value: {
                     file,
-                    pattern,
-                    tagKind: 'v'
+                    pattern
                 }
             });
             if (batchOps.length >= batchSize) {
                 symbols += batchOps.length;
                 channel.appendLine(`${symbols} variables processed...`);
                 await batchWriteIntoDB(batchOps);
-                batchOps = db.batch();
+                batchOps = [];
             }
         } catch (err) {
             // **Critical safety**: catch ANY other errors but keep going
@@ -116,11 +113,9 @@ async function runCtags(root, files, channel, ctagsCmd) {
         channel.appendLine(`${symbols} variables processed...`);
     }
     channel.appendLine('Variable indexing completed...');
-    return tagNames;
 }
 
 async function runGtags(root, files, channel, gtagsCmd) {
-    const total = files.length;
     channel.appendLine('Running Gtags...');
     const p = spawn(gtagsCmd, ['-v', '-f', '-'], { cwd: root });
 
@@ -135,10 +130,10 @@ async function runGtags(root, files, channel, gtagsCmd) {
         }
         processed++;
         if (processed % 500 === 0) {
-            channel.appendLine(`${processed}/${total} files processed by gtags...`);
+            channel.appendLine(`${processed}/${files.length} files processed by gtags...`);
         }
-        if (processed === total) {
-            channel.appendLine(`${processed}/${total} files processed by gtags...`);
+        if (processed === files.length) {
+            channel.appendLine(`${processed}/${files.length} files processed by gtags...`);
         }
     });
 
@@ -168,8 +163,7 @@ async function runGlobal(root, channel, globalCmd) {
     const db = getDB();
     const batchSize = 200000;
     let symbols = 0;
-    let batchOps = db.batch();
-    const tagNames = new Set();
+    let batchOps = [];
 
     for await (const line of rl) {
         try {
@@ -199,14 +193,12 @@ async function runGlobal(root, channel, globalCmd) {
 
             const pattern = '^' + line.slice(patternStartIndex + file.length + 1).trim() + '$';
 
-            tagNames.add(tagName);
             batchOps.push({
                 type: 'put',
                 key: `tag:${tagName}`,
                 value: {
                     file,
-                    pattern,
-                    tagKind: 'f'
+                    pattern
                 }
             });
 
@@ -214,7 +206,7 @@ async function runGlobal(root, channel, globalCmd) {
                 symbols += batchOps.length;
                 channel.appendLine(`${symbols} symbols processed...`);
                 await batchWriteIntoDB(batchOps);
-                batchOps = db.batch();
+                batchOps = [];
             }
         } catch (err) {
             // **Critical safety**: catch ANY other errors but keep going
@@ -228,7 +220,6 @@ async function runGlobal(root, channel, globalCmd) {
         channel.appendLine(`${symbols} symbols processed...`);
     }
     channel.appendLine('All structure types and functions are indexed...');
-    return tagNames;
 }
 
 async function parseToTagsFile(root, channel, exeCmds) {
@@ -237,15 +228,17 @@ async function parseToTagsFile(root, channel, exeCmds) {
     channel.appendLine(`Found ${files.length} source files(s) to index...`);
     const ctagsPromise = runCtags(root, files, channel, exeCmds.ctags);
     await runGtags(root, files, channel, exeCmds.gtags);
-    const globalTagNames = await runGlobal(root, channel, exeCmds.global);
-    const ctagsTagNames = await ctagsPromise;
-    const allTagNames = [...ctagsTagNames, ...globalTagNames];
-    return allTagNames;
+    await runGlobal(root, channel, exeCmds.global);
+    await ctagsPromise;
 }
 
-async function assignIdsToVariables (channel, allTags) {
+async function assignIdsToVariables (channel) {
   const db = getDB();
   channel.appendLine('Creating Tags DataBase...');
+    const allTags = [];
+  for await (const [key, value] of db.iterator({ gte: 'tag:', lt: 'tag;' })) {
+    allTags.push(key.slice(4));
+  }
   allTags.sort((a,b) => a.length - b.length);
   
   const idbatch = db.batch();
@@ -268,7 +261,8 @@ async function assignIdsToVariables (channel, allTags) {
   await tokenbatch.write();
   db.close();
   db.open();
-};
+}
+
 
 async function parseAndStoreTags(channel, root, exeCmds) {
     channel.show();
@@ -276,21 +270,11 @@ async function parseAndStoreTags(channel, root, exeCmds) {
     await cleanGtagsFiles(root, channel);
     await cleanDB();
     await openDB();
-    const allTagNames = await parseToTagsFile(root, channel, exeCmds);
-    await assignIdsToVariables(channel, allTagNames);
+    await parseToTagsFile(root, channel, exeCmds);
+    await assignIdsToVariables(channel);
     channel.appendLine('Post processing symbols...');
     channel.appendLine('Tags DataBase created successfully...');
-    const sec = ((performance.now() - start) / 1000).toFixed(3);
-    if (sec < 60) {
-        const secRounded = Math.floor(sec);
-        const millisec = Math.round((sec % 1) * 1000);
-        channel.appendLine(`Elapsed: ${secRounded} seconds ${millisec} ms`);
-    } else {
-        const mins = Math.floor(sec / 60);
-        const remainingSec = Math.floor(sec % 60);
-        const millisec = Math.round((sec % 1) * 1000);
-        channel.appendLine(`Elapsed: ${mins} minutes ${remainingSec} seconds ${millisec} ms`);
-    }
+    elapsedTime(start, performance.now(), channel);
 }
 
 module.exports = {
