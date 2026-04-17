@@ -158,17 +158,40 @@ async function handleSearchTagsCommand(context) {
     quickPick.matchOnDescription = false;
     quickPick.matchOnDetail = false;
 
+    let abortController = null;
+
     quickPick.onDidChangeValue(async (input) => {
+        if (abortController) {
+            abortController.abort();
+        }
+
         if (!input) {
             quickPick.items = [];
             return;
         }
-        const items = await searchQuery(input);
-        quickPick.items = items.map(r => ({
-            label: r.label,
-            description: r.description,
-            alwaysShow: true
-        }));
+
+        abortController = new AbortController();
+        const signal = abortController.signal;
+
+        try {
+            const items = await searchQuery(input, signal);
+            
+            if (signal.aborted) {
+                return;
+            }
+
+            quickPick.items = items.map(r => ({
+                label: r.label,
+                description: r.description,
+                alwaysShow: true
+            }));
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log('Search aborted');
+            } else {
+                console.error(error);
+            }
+        }
     });
 
     quickPick.onDidAccept(() => {
