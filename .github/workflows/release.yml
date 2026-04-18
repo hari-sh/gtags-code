@@ -2,8 +2,6 @@ name: Package and Release VSIX
 
 on:
   push:
-    branches:
-      - main  # Only trigger on main branch for production releases
 
 permissions:
   contents: write  # Needed to push tags and create releases
@@ -24,12 +22,13 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Set version from package.json
-        id: version
+      - name: Set unique version for push
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          VERSION="${BASE_VERSION}-${{ github.run_number }}"
+          # Temporarily bump package.json version so vsce packages a unique version
+          npm version $VERSION --no-git-tag-version --allow-same-version
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Create Git tag
         run: |
