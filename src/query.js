@@ -1,5 +1,5 @@
 const { spawn } = require('child_process');
-const { getValueFromDb, getDB, batchWriteIntoDB, searchQuery, resetSearchMap } = require('./database');
+const { getValueFromDb, getDB, batchWriteIntoDB, searchQuery } = require('./database');
 const vscode = require('vscode');
 const fs = require('fs');
 const readline = require('readline');
@@ -200,7 +200,6 @@ async function handleSearchTagsCommand(context) {
             jumputil(vscode.window.activeTextEditor, context, selected.label)
         }
         quickPick.hide();
-        resetSearchMap();
     });
 
     quickPick.onDidHide(() => quickPick.dispose());
