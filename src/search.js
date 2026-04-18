@@ -1,6 +1,6 @@
 const createLongHeap = (capacity) => {
-    // Using BigInt64Array for 64-bit precision
-    const data = new BigInt64Array(capacity * 3);
+    // Using Float64Array for 64-bit precision without BigInt conversion overhead
+    const data = new Float64Array(capacity * 3);
     let size = 0;
 
     const swap = (i, j) => {
@@ -14,10 +14,9 @@ const createLongHeap = (capacity) => {
     return {
         push: (val, arrIdx, eleIdx) => {
             let i = size * 3;
-            // Convert val to BigInt if it's a regular number
-            data[i] = BigInt(val);
-            data[i + 1] = BigInt(arrIdx);
-            data[i + 2] = BigInt(eleIdx);
+            data[i] = val;
+            data[i + 1] = arrIdx;
+            data[i + 2] = eleIdx;
 
             let curr = size++;
             while (curr > 0) {
@@ -28,7 +27,7 @@ const createLongHeap = (capacity) => {
             }
         },
         pop: () => {
-            const res = [data[0], Number(data[1]), Number(data[2])];
+            const res = [data[0], data[1], data[2]];
             size--;
             if (size > 0) {
                 data.set(data.subarray(size * 3, size * 3 + 3), 0);
@@ -71,7 +70,7 @@ const getSmallest20IntersectionWithAbort = (groups, signal) => {
     });
 
     const results = [];
-    const currentValues = new BigInt64Array(numGroups);
+    const currentValues = new Float64Array(numGroups);
 
     for (let i = 0; i < numGroups; i++) {
         if (heaps[i].isEmpty()) return [];
