@@ -54,7 +54,7 @@ const createLongHeap = (capacity) => {
  * @param {Array<Array<Array<bigint|number>>>} groups - The 3D data structure.
  * @param {AbortSignal} signal - The signal from an AbortController.
  */
-const getSmallest20IntersectionWithAbort = (groups, signal) => {
+const getTopIntersections = (groups, signal, limit = 20) => {
     // Immediate exit if already aborted
     if (signal?.aborted) return;
 
@@ -77,7 +77,7 @@ const getSmallest20IntersectionWithAbort = (groups, signal) => {
         currentValues[i] = heaps[i].peekValue();
     }
 
-    while (results.length < 20) {
+    while (results.length < limit) {
         // ABORT CHECK: Check at the start of every result discovery cycle
         if (signal?.aborted) return;
 
@@ -114,7 +114,7 @@ const getSmallest20IntersectionWithAbort = (groups, signal) => {
                 }
 
                 if (heaps[i].isEmpty()) {
-                    if (results.length < 20) return results;
+                    if (results.length < limit) return results;
                 } else {
                     currentValues[i] = heaps[i].peekValue();
                 }
@@ -126,5 +126,5 @@ const getSmallest20IntersectionWithAbort = (groups, signal) => {
 };
 
 module.exports = {
-    getSmallest20IntersectionWithAbort
+    getTopIntersections
 };

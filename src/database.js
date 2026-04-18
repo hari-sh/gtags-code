@@ -18,15 +18,10 @@ if (__dirname.includes('src')) {
 
 const fs = require('fs').promises;
 const { tokenize } = require('./tokens');
-const { getSmallest20IntersectionWithAbort } = require('./search');
+const { getTopIntersections } = require('./search');
 
 let db;
 let dbpath;
-let inputUnionMap = new Map();
-
-function resetSearchMap() {
-  inputUnionMap = new Map();
-}
 
 function initDB(rootPath) {
   if (!dbpath) {
@@ -116,45 +111,38 @@ async function batchWriteIntoDB(data) {
 }
 
 async function getIds(words, signal) {
-  const groups = [];
-  for (const word of words) {
+  const groups = await Promise.all(words.map(async (word) => {
     if (signal?.aborted) { const e = new Error('Aborted'); e.name = 'AbortError'; throw e; }
-    let ilist;
-    if (inputUnionMap.has(word)) {
-      ilist = inputUnionMap.get(word);
-    } else {
-      ilist = [];
-      for await (const [key, value] of db.iterator({ gte: `token:${word}`, lt: `token:${word}~` })) {
-        if (signal?.aborted) { const e = new Error('Aborted'); e.name = 'AbortError'; throw e; }
-        ilist.push(value);
-      }
-      inputUnionMap.set(word, ilist);
+    const ilist = [];
+    for await (const [key, value] of db.iterator({ gte: `token:${word}`, lt: `token:${word}~` })) {
+      if (signal?.aborted) { const e = new Error('Aborted'); e.name = 'AbortError'; throw e; }
+      ilist.push(value);
     }
-    groups.push(ilist);
-  }
-  return getSmallest20IntersectionWithAbort(groups, signal);
+    return ilist;
+  }));
+  return getTopIntersections(groups, signal);
 }
 
 
 const searchQuery = async (query, signal) => {
   const terms = tokenize(query);
   if (terms.length === 0) return [];
-  const results = [];
+
   const ids = await getIds(terms, signal);
-  for (const id of ids.slice(0, 15)) {
-    if (signal?.aborted) { const e = new Error('Aborted'); e.name = 'AbortError'; throw e; }
+  if (signal?.aborted) { const e = new Error('Aborted'); e.name = 'AbortError'; throw e; }
+
+  const rawResults = await Promise.all(ids.map(async (id) => {
     try {
       const variableName = await db.get(`id:${id}`);
       const meta = await db.get(`tag:${variableName}`);
-      results.push({
-        label: variableName,
-        description: meta?.file || ''
-      });
+      return { label: variableName, description: meta?.file || '' };
     } catch {
       console.log('Unable to get db value');
+      return null;
     }
-  }
-  return results;
+  }));
+
+  return rawResults.filter(Boolean);
 };
 
-module.exports = { initDB, getDB, openDB, cleanDB, closeDB, getValueFromDb, batchWriteIntoDB, searchQuery, resetSearchMap };
+module.exports = { initDB, getDB, openDB, cleanDB, closeDB, getValueFromDb, batchWriteIntoDB, searchQuery };
