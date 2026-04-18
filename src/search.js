@@ -58,10 +58,20 @@ const getTopIntersections = (groups, signal, limit = 20) => {
     // Immediate exit if already aborted
     if (signal?.aborted) return;
 
-    const numGroups = groups.length;
-    if (numGroups === 0) return [];
+    if (groups.length === 0) return [];
 
-    const heaps = groups.map(group => {
+    // Optimization: Sort groups so that the smallest groups (fewest elements total) 
+    // are evaluated first. This helps advance maxVal much faster when skipping dense groups.
+    const sortedGroups = groups.slice().sort((a, b) => {
+        let aLen = 0, bLen = 0;
+        for (let i = 0; i < a.length; i++) aLen += a[i].length;
+        for (let i = 0; i < b.length; i++) bLen += b[i].length;
+        return aLen - bLen;
+    });
+
+    const numGroups = sortedGroups.length;
+
+    const heaps = sortedGroups.map(group => {
         const h = createLongHeap(group.length);
         group.forEach((arr, idx) => {
             if (arr.length > 0) h.push(arr[0], idx, 0);
@@ -90,15 +100,48 @@ const getTopIntersections = (groups, signal, limit = 20) => {
         for (let i = 0; i < numGroups; i++) {
             while (currentValues[i] < maxVal) {
                 const [_, arrIdx, eleIdx] = heaps[i].pop();
-                const nextIdx = eleIdx + 1;
-                if (nextIdx < groups[i][arrIdx].length) {
-                    heaps[i].push(groups[i][arrIdx][nextIdx], arrIdx, nextIdx);
+                const arr = sortedGroups[i][arrIdx];
+                let low = eleIdx + 1;
+                const high = arr.length - 1;
+
+                if (low <= high) {
+                    if (arr[high] < maxVal) {
+                        // All remaining elements in this array are less than maxVal.
+                        // We skip pushing it back to the heap.
+                    } else if (arr[low] >= maxVal) {
+                        // The very next element is >= maxVal, so push it.
+                        heaps[i].push(arr[low], arrIdx, low);
+                    } else {
+                        // Galloping search for the first element >= maxVal
+                        let bound = 1;
+                        const maxBound = high - low;
+                        while (bound <= maxBound && arr[low + bound] < maxVal) {
+                            bound <<= 1;
+                        }
+                        let l = low + (bound >> 1);
+                        let r = bound <= maxBound ? low + bound : high;
+                        
+                        let ans = r;
+                        while (l <= r) {
+                            let mid = (l + r) >> 1;
+                            if (arr[mid] >= maxVal) {
+                                ans = mid;
+                                r = mid - 1;
+                            } else {
+                                l = mid + 1;
+                            }
+                        }
+                        heaps[i].push(arr[ans], arrIdx, ans);
+                    }
                 }
 
                 if (heaps[i].isEmpty()) return results;
                 currentValues[i] = heaps[i].peekValue();
             }
-            if (currentValues[i] !== maxVal) allSame = false;
+            if (currentValues[i] > maxVal) {
+                maxVal = currentValues[i];
+                allSame = false;
+            }
         }
 
         if (allSame) {
@@ -108,12 +151,42 @@ const getTopIntersections = (groups, signal, limit = 20) => {
                 const matchVal = maxVal;
                 while (!heaps[i].isEmpty() && heaps[i].peekValue() <= matchVal) {
                     const [_, arrIdx, eleIdx] = heaps[i].pop();
-                    if (eleIdx + 1 < groups[i][arrIdx].length) {
-                        heaps[i].push(groups[i][arrIdx][eleIdx + 1], arrIdx, eleIdx + 1);
+                    const arr = sortedGroups[i][arrIdx];
+                    let low = eleIdx + 1;
+                    const high = arr.length - 1;
+
+                    if (low <= high) {
+                        if (arr[high] <= matchVal) {
+                            // Skip entirely
+                        } else if (arr[low] > matchVal) {
+                            heaps[i].push(arr[low], arrIdx, low);
+                        } else {
+                            // Galloping search for first element > matchVal
+                            let bound = 1;
+                            const maxBound = high - low;
+                            while (bound <= maxBound && arr[low + bound] <= matchVal) {
+                                bound <<= 1;
+                            }
+                            let l = low + (bound >> 1);
+                            let r = bound <= maxBound ? low + bound : high;
+                            
+                            let ans = r;
+                            while (l <= r) {
+                                let mid = (l + r) >> 1;
+                                if (arr[mid] > matchVal) {
+                                    ans = mid;
+                                    r = mid - 1;
+                                } else {
+                                    l = mid + 1;
+                                }
+                            }
+                            heaps[i].push(arr[ans], arrIdx, ans);
+                        }
                     }
                 }
 
                 if (heaps[i].isEmpty()) {
+                    // Check if we hit the limit early before advancing the rest
                     if (results.length < limit) return results;
                 } else {
                     currentValues[i] = heaps[i].peekValue();
