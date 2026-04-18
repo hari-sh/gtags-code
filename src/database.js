@@ -18,6 +18,7 @@ if (__dirname.includes('src')) {
 
 const fs = require('fs').promises;
 const { tokenize } = require('./tokens');
+const { getSmallest20IntersectionWithAbort } = require('./search');
 
 let db;
 let dbpath;
@@ -114,54 +115,24 @@ async function batchWriteIntoDB(data) {
   }
 }
 
-function getUnion(group) {
-  const union = new Set();
-  for (const arr of group) {
-    for (const val of arr) {
-      union.add(val);
-    }
-  }
-  return union;
-}
-
-function getSortedList(stringSet) {
-  return [...stringSet]
-    .sort((a, b) => a.length - b.length);
-}
-
-function intersectionOfUnions(unionSets) {
-  const [firstSet, ...restSets] = unionSets;
-  const result = [];
-  for (const val of Array.from(firstSet).sort((a, b) => a - b)) {
-    if (restSets.every(set => set.has(val))) {
-      result.push(val);
-      if (result.length == 15) {
-        return result;
-      }
-    }
-  }
-  return result;
-}
-
 async function getIds(words, signal) {
-  const unionSets = [];
+  const groups = [];
   for (const word of words) {
     if (signal?.aborted) { const e = new Error('Aborted'); e.name = 'AbortError'; throw e; }
-    let unionSet;
+    let ilist;
     if (inputUnionMap.has(word)) {
-      unionSet = inputUnionMap.get(word);
+      ilist = inputUnionMap.get(word);
     } else {
-      const ilist = [];
+      ilist = [];
       for await (const [key, value] of db.iterator({ gte: `token:${word}`, lt: `token:${word}~` })) {
         if (signal?.aborted) { const e = new Error('Aborted'); e.name = 'AbortError'; throw e; }
         ilist.push(value);
       }
-      unionSet = getUnion(ilist);
-      inputUnionMap.set(word, unionSet);
+      inputUnionMap.set(word, ilist);
     }
-    unionSets.push(unionSet);
+    groups.push(ilist);
   }
-  return intersectionOfUnions(unionSets);
+  return getSmallest20IntersectionWithAbort(groups, signal);
 }
 
 
