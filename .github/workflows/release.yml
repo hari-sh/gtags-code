@@ -25,12 +25,27 @@ jobs:
       - name: Set unique version for push
         run: |
           BASE_VERSION=$(node -p "require('./package.json').version")
-          VERSION="${BASE_VERSION}-${{ github.run_number }}"
-          # Temporarily bump package.json version so vsce packages a unique version
-          npm version $VERSION --no-git-tag-version --allow-same-version
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            VERSION="$BASE_VERSION"
+          else
+            VERSION="${BASE_VERSION}-beta.${{ github.run_number }}"
+            # Temporarily bump package.json version so vsce packages a unique version
+            npm version $VERSION --no-git-tag-version --allow-same-version
+          fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          if git ls-remote --tags origin | grep -q "refs/tags/v${{ env.VERSION }}$"; then
+            echo "Tag v${{ env.VERSION }} already exists."
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create Git tag
+        if: steps.check_tag.outputs.exists == 'false'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
@@ -38,9 +53,11 @@ jobs:
           git push origin "v${{ env.VERSION }}"
 
       - name: Package VSIX
+        if: steps.check_tag.outputs.exists == 'false'
         run: npx @vscode/vsce package
 
       - name: Upload VSIX to GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v${{ env.VERSION }}"
