@@ -45,7 +45,7 @@ async function runCtags(root, files, channel, ctagsCmd) {
         if (!line.trim()) {
             return;
         }
-        if(line.startsWith('OPENING'))  {
+        if (line.startsWith('OPENING')) {
             processed++;
             if (processed % 500 === 0) {
                 channel.appendLine(`${processed}/${files.length} files processed by ctags...`);
@@ -80,7 +80,7 @@ async function runCtags(root, files, channel, ctagsCmd) {
             }
             const tagName = parts[0];
             const file = parts[1];
-            
+
             if (!tagName || !file) {
                 console.warn("Invalid tagName/file:", line);
                 continue;
@@ -213,59 +213,58 @@ async function parseToTagsFile(root, channel, exeCmds) {
     await ctagsPromise;
 }
 
-async function assignIdsToVariables (channel) {
-  const db = getDB();
-  channel.appendLine('Creating Tags DataBase...');
-  
-  let totalTags = 0;
-  const buckets = [];
-  for await (const key of db.keys({ gte: 'tag:', lt: 'tag;' })) {
-    const tag = key.slice(4);
-    const len = tag.length;
-    if (!buckets[len]) buckets[len] = [];
-    buckets[len].push(tag);
-    totalTags++;
-  }
-  
-  const batchSize = 200000;
-  const idWriter = new BatchWriter(batchSize, (processed) => {
-    channel.appendLine(`${processed}/${totalTags} IDs assigned...`);
-  });
-  let ind = 0;
-  const tokenMap = new Map();
-  
-  for (let b = 0; b < buckets.length; b++) {
-    const bucket = buckets[b];
-    if (!bucket) continue;
-    
-    for(let i = 0; i < bucket.length; i++) {
-      const varname = bucket[i];
-      const varid = ind + 1;
-      await idWriter.add({ type: 'put', key: `id:${varid}`, value: varname });
-      const tokens = new Set(tokenize(varname));
-      for (const token of tokens) {
-        let ids = tokenMap.get(token);
-        if (!ids) {
-          ids = [];
-          tokenMap.set(token, ids);
-        }
-        ids.push(varid);
-      }
-      ind++;
-    }
-  }
-  await idWriter.flush();
+async function assignIdsToVariables(channel) {
+    const db = getDB();
+    channel.appendLine('Creating Tags DataBase...');
 
-  const tokenWriter = new BatchWriter(batchSize, (processed) => {
-    channel.appendLine(`${processed}/${tokenMap.size} tokens processed...`);
-  });
-  for (const [token, ids] of tokenMap) {
-    await tokenWriter.add({ type: 'put', key: `token:${token}`, value: ids });
-  }
-  await tokenWriter.flush();
-  
-  await db.close();
-  await db.open();
+    let totalTags = 0;
+    const buckets = [];
+    for await (const key of db.keys({ gte: 'tag:', lt: 'tag;' })) {
+        const tag = key.slice(4);
+        const len = tag.length;
+        if (!buckets[len]) buckets[len] = [];
+        buckets[len].push(tag);
+        totalTags++;
+    }
+
+    const idWriter = new BatchWriter(600000, (processed) => {
+        channel.appendLine(`${processed}/${totalTags} IDs assigned...`);
+    });
+    let ind = 0;
+    const tokenMap = new Map();
+
+    for (let b = 0; b < buckets.length; b++) {
+        const bucket = buckets[b];
+        if (!bucket) continue;
+
+        for (let i = 0; i < bucket.length; i++) {
+            const varname = bucket[i];
+            const varid = ind + 1;
+            await idWriter.add({ type: 'put', key: `id:${varid}`, value: varname });
+            const tokens = new Set(tokenize(varname));
+            for (const token of tokens) {
+                let ids = tokenMap.get(token);
+                if (!ids) {
+                    ids = [];
+                    tokenMap.set(token, ids);
+                }
+                ids.push(varid);
+            }
+            ind++;
+        }
+    }
+    await idWriter.flush();
+
+    const tokenWriter = new BatchWriter(50000, (processed) => {
+        channel.appendLine(`${processed}/${tokenMap.size} tokens processed...`);
+    });
+    for (const [token, ids] of tokenMap) {
+        await tokenWriter.add({ type: 'put', key: `token:${token}`, value: ids });
+    }
+    await tokenWriter.flush();
+
+    await db.close();
+    await db.open();
 }
 
 
