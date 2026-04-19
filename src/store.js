@@ -235,40 +235,53 @@ async function parseToTagsFile(root, channel, exeCmds) {
 async function assignIdsToVariables (channel) {
   const db = getDB();
   channel.appendLine('Creating Tags DataBase...');
-  const allTags = [];
+  
+  let totalTags = 0;
+  const buckets = [];
   for await (const key of db.keys({ gte: 'tag:', lt: 'tag;' })) {
-    allTags.push(key.slice(4));
+    const tag = key.slice(4);
+    const len = tag.length;
+    if (!buckets[len]) buckets[len] = [];
+    buckets[len].push(tag);
+    totalTags++;
   }
-  allTags.sort((a,b) => a.length - b.length);
   
   const batchSize = 200000;
   let idBatchOps = [];
   let processed = 0;
+  let ind = 0;
   const tokenMap = new Map();
-  for(let ind = 0; ind < allTags.length; ind++) {
-    const varname = allTags[ind];
-    const varid = ind + 1;
-    idBatchOps.push({ type: 'put', key: `id:${varid}`, value: varname });
-    if (idBatchOps.length >= batchSize) {
-      await batchWriteIntoDB(idBatchOps);
-      idBatchOps = [];
-      processed += batchSize;
-      channel.appendLine(`${processed}/${allTags.length} IDs assigned...`);
-    }
-    const tokens = new Set(tokenize(varname));
-    for (const token of tokens) {
-      let ids = tokenMap.get(token);
-      if (!ids) {
-        ids = [];
-        tokenMap.set(token, ids);
+  
+  for (let b = 0; b < buckets.length; b++) {
+    const bucket = buckets[b];
+    if (!bucket) continue;
+    
+    for(let i = 0; i < bucket.length; i++) {
+      const varname = bucket[i];
+      const varid = ind + 1;
+      idBatchOps.push({ type: 'put', key: `id:${varid}`, value: varname });
+      if (idBatchOps.length >= batchSize) {
+        await batchWriteIntoDB(idBatchOps);
+        idBatchOps = [];
+        processed += batchSize;
+        channel.appendLine(`${processed}/${totalTags} IDs assigned...`);
       }
-      ids.push(varid);
+      const tokens = new Set(tokenize(varname));
+      for (const token of tokens) {
+        let ids = tokenMap.get(token);
+        if (!ids) {
+          ids = [];
+          tokenMap.set(token, ids);
+        }
+        ids.push(varid);
+      }
+      ind++;
     }
   }
   if (idBatchOps.length > 0) {
     await batchWriteIntoDB(idBatchOps);
     processed += idBatchOps.length;
-    channel.appendLine(`${processed}/${allTags.length} IDs assigned...`);
+    channel.appendLine(`${processed}/${totalTags} IDs assigned...`);
   }
 
   let tokenBatchOps = [];
