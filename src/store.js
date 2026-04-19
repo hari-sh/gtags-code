@@ -8,7 +8,7 @@ const { preflight, cleanGtagsFiles, ensureCtagsAvailable } = require('./prefligh
 const { tokenize } = require('./tokens');
 const { performance } = require('perf_hooks');
 const { elapsedTime } = require('./utils');
-
+const BatchWriter = require('./batchWriter');
 const exts = new Set(['.c', '.cpp', '.h', '.hpp', '.cc', '.hh', '.cxx', '.hxx']);
 
 async function getSourceFiles(dir, root, out = []) {
@@ -45,7 +45,7 @@ async function runCtags(root, files, channel, ctagsCmd) {
         if (!line.trim()) {
             return;
         }
-        if(line.startsWith('OPENING'))  {
+        if (line.startsWith('OPENING')) {
             processed++;
             if (processed % 500 === 0) {
                 channel.appendLine(`${processed}/${files.length} files processed by ctags...`);
@@ -64,8 +64,9 @@ async function runCtags(root, files, channel, ctagsCmd) {
 
     const db = getDB();
     const batchSize = 200000;
-    let symbols = 0;
-    let batchOps = [];
+    const batchWriter = new BatchWriter(batchSize, (processed) => {
+        channel.appendLine(`${processed} variables processed...`);
+    });
 
     for await (const line of rl) {
         try {
@@ -79,7 +80,7 @@ async function runCtags(root, files, channel, ctagsCmd) {
             }
             const tagName = parts[0];
             const file = parts[1];
-            
+
             if (!tagName || !file) {
                 console.warn("Invalid tagName/file:", line);
                 continue;
@@ -87,7 +88,7 @@ async function runCtags(root, files, channel, ctagsCmd) {
 
             // Extract pattern from /^pattern$/ format, keeping ^ and $
             const pattern = parts[2].replace(/^[^/]*\/(.*)\/[^/]*$/, '$1');
-            batchOps.push({
+            await batchWriter.add({
                 type: 'put',
                 key: `tag:${tagName}`,
                 value: {
@@ -95,23 +96,13 @@ async function runCtags(root, files, channel, ctagsCmd) {
                     pattern
                 }
             });
-            if (batchOps.length >= batchSize) {
-                symbols += batchOps.length;
-                channel.appendLine(`${symbols} variables processed...`);
-                await batchWriteIntoDB(batchOps);
-                batchOps = [];
-            }
         } catch (err) {
             // **Critical safety**: catch ANY other errors but keep going
             console.error("Error while processing line:", line, err);
             continue;
         }
     }
-    if (batchOps.length > 0) {
-        symbols += batchOps.length;
-        await batchWriteIntoDB(batchOps);
-        channel.appendLine(`${symbols} variables processed...`);
-    }
+    await batchWriter.flush();
     channel.appendLine('Variable indexing completed...');
 }
 
@@ -162,8 +153,9 @@ async function runGlobal(root, channel, globalCmd) {
 
     const db = getDB();
     const batchSize = 200000;
-    let symbols = 0;
-    let batchOps = [];
+    const batchWriter = new BatchWriter(batchSize, (processed) => {
+        channel.appendLine(`${processed} symbols processed...`);
+    });
 
     for await (const line of rl) {
         try {
@@ -193,7 +185,7 @@ async function runGlobal(root, channel, globalCmd) {
 
             const pattern = '^' + line.slice(patternStartIndex + file.length + 1).trim() + '$';
 
-            batchOps.push({
+            await batchWriter.add({
                 type: 'put',
                 key: `tag:${tagName}`,
                 value: {
@@ -201,24 +193,13 @@ async function runGlobal(root, channel, globalCmd) {
                     pattern
                 }
             });
-
-            if (batchOps.length >= batchSize) {
-                symbols += batchOps.length;
-                channel.appendLine(`${symbols} symbols processed...`);
-                await batchWriteIntoDB(batchOps);
-                batchOps = [];
-            }
         } catch (err) {
             // **Critical safety**: catch ANY other errors but keep going
             console.error("Error while processing line:", line, err);
             continue;
         }
     }
-    if (batchOps.length > 0) {
-        symbols += batchOps.length;
-        await batchWriteIntoDB(batchOps);
-        channel.appendLine(`${symbols} symbols processed...`);
-    }
+    await batchWriter.flush();
     channel.appendLine('All structure types and functions are indexed...');
 }
 
@@ -232,35 +213,58 @@ async function parseToTagsFile(root, channel, exeCmds) {
     await ctagsPromise;
 }
 
-async function assignIdsToVariables (channel) {
-  const db = getDB();
-  channel.appendLine('Creating Tags DataBase...');
-    const allTags = [];
-  for await (const [key, value] of db.iterator({ gte: 'tag:', lt: 'tag;' })) {
-    allTags.push(key.slice(4));
-  }
-  allTags.sort((a,b) => a.length - b.length);
-  
-  const idbatch = db.batch();
-  const tokenMap = new Map();
-  for(let ind = 0; ind < allTags.length; ind++) {
-    const varname = allTags[ind];
-    const varid = ind + 1;
-    idbatch.put(`id:${varid}`, varname);
-    for (const token of tokenize(varname)) {
-      if (!tokenMap.has(token)) tokenMap.set(token, new Set());
-      tokenMap.get(token).add(varid);
-    }
-  }
-  await idbatch.write();
+async function assignIdsToVariables(channel) {
+    const db = getDB();
+    channel.appendLine('Creating Tags DataBase...');
 
-  const tokenbatch = db.batch();
-  for (const [token, ids] of tokenMap) {
-    tokenbatch.put(`token:${token}`, Array.from(ids));
-  }
-  await tokenbatch.write();
-  db.close();
-  db.open();
+    let totalTags = 0;
+    const buckets = [];
+    for await (const key of db.keys({ gte: 'tag:', lt: 'tag;' })) {
+        const tag = key.slice(4);
+        const len = tag.length;
+        if (!buckets[len]) buckets[len] = [];
+        buckets[len].push(tag);
+        totalTags++;
+    }
+
+    const idWriter = new BatchWriter(200000, (processed) => {
+        channel.appendLine(`${processed}/${totalTags} IDs assigned...`);
+    });
+    let ind = 0;
+    const tokenMap = new Map();
+
+    for (let b = 0; b < buckets.length; b++) {
+        const bucket = buckets[b];
+        if (!bucket) continue;
+
+        for (let i = 0; i < bucket.length; i++) {
+            const varname = bucket[i];
+            const varid = ind + 1;
+            await idWriter.add({ type: 'put', key: `id:${varid}`, value: varname });
+            const tokens = new Set(tokenize(varname));
+            for (const token of tokens) {
+                let ids = tokenMap.get(token);
+                if (!ids) {
+                    ids = [];
+                    tokenMap.set(token, ids);
+                }
+                ids.push(varid);
+            }
+            ind++;
+        }
+    }
+    await idWriter.flush();
+
+    const tokenWriter = new BatchWriter(50000, (processed) => {
+        channel.appendLine(`${processed}/${tokenMap.size} tokens processed...`);
+    });
+    for (const [token, ids] of tokenMap) {
+        await tokenWriter.add({ type: 'put', key: `token:${token}`, value: ids });
+    }
+    await tokenWriter.flush();
+
+    await db.close();
+    await db.open();
 }
 
 
