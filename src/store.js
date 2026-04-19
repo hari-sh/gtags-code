@@ -227,7 +227,7 @@ async function assignIdsToVariables(channel) {
         totalTags++;
     }
 
-    const idWriter = new BatchWriter(600000, (processed) => {
+    const idWriter = new BatchWriter(200000, (processed) => {
         channel.appendLine(`${processed}/${totalTags} IDs assigned...`);
     });
     let ind = 0;
