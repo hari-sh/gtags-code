@@ -28,7 +28,11 @@ function initDB(rootPath) {
     dbpath = path.join(rootPath, 'tagsdb');
   }
   if (!db) {
-    db = new ClassicLevel(dbpath, { valueEncoding: 'json' });
+    // Increase internal write buffer to 64MB (default is 4MB) to prevent immediate memtable compactions during huge batch writes
+    db = new ClassicLevel(dbpath, { 
+      valueEncoding: 'json',
+      writeBufferSize: 64 * 1024 * 1024 
+    });
   }
   return db;
 }
