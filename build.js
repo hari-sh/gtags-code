@@ -22,6 +22,7 @@ for (const target of targets) {
 esbuild.build({
   entryPoints: ['src/main.js'],
   bundle: true,
+  sourcemap: true,
   platform: 'node',
   format: 'cjs',
   outfile: 'dist/main.js',
