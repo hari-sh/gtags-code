@@ -235,32 +235,61 @@ async function parseToTagsFile(root, channel, exeCmds) {
 async function assignIdsToVariables (channel) {
   const db = getDB();
   channel.appendLine('Creating Tags DataBase...');
-    const allTags = [];
-  for await (const [key, value] of db.iterator({ gte: 'tag:', lt: 'tag;' })) {
+  const allTags = [];
+  for await (const key of db.keys({ gte: 'tag:', lt: 'tag;' })) {
     allTags.push(key.slice(4));
   }
   allTags.sort((a,b) => a.length - b.length);
   
-  const idbatch = db.batch();
+  const batchSize = 200000;
+  let idBatchOps = [];
+  let processed = 0;
   const tokenMap = new Map();
   for(let ind = 0; ind < allTags.length; ind++) {
     const varname = allTags[ind];
     const varid = ind + 1;
-    idbatch.put(`id:${varid}`, varname);
-    for (const token of tokenize(varname)) {
-      if (!tokenMap.has(token)) tokenMap.set(token, new Set());
-      tokenMap.get(token).add(varid);
+    idBatchOps.push({ type: 'put', key: `id:${varid}`, value: varname });
+    if (idBatchOps.length >= batchSize) {
+      await batchWriteIntoDB(idBatchOps);
+      idBatchOps = [];
+      processed += batchSize;
+      channel.appendLine(`${processed}/${allTags.length} IDs assigned...`);
+    }
+    const tokens = new Set(tokenize(varname));
+    for (const token of tokens) {
+      let ids = tokenMap.get(token);
+      if (!ids) {
+        ids = [];
+        tokenMap.set(token, ids);
+      }
+      ids.push(varid);
     }
   }
-  await idbatch.write();
-
-  const tokenbatch = db.batch();
-  for (const [token, ids] of tokenMap) {
-    tokenbatch.put(`token:${token}`, Array.from(ids));
+  if (idBatchOps.length > 0) {
+    await batchWriteIntoDB(idBatchOps);
+    processed += idBatchOps.length;
+    channel.appendLine(`${processed}/${allTags.length} IDs assigned...`);
   }
-  await tokenbatch.write();
-  db.close();
-  db.open();
+
+  let tokenBatchOps = [];
+  let tokenProcessed = 0;
+  for (const [token, ids] of tokenMap) {
+    tokenBatchOps.push({ type: 'put', key: `token:${token}`, value: ids });
+    if (tokenBatchOps.length >= batchSize) {
+      await batchWriteIntoDB(tokenBatchOps);
+      tokenBatchOps = [];
+      tokenProcessed += batchSize;
+      channel.appendLine(`${tokenProcessed}/${tokenMap.size} tokens processed...`);
+    }
+  }
+  if (tokenBatchOps.length > 0) {
+    await batchWriteIntoDB(tokenBatchOps);
+    tokenProcessed += tokenBatchOps.length;
+    channel.appendLine(`${tokenProcessed}/${tokenMap.size} tokens processed...`);
+  }
+  
+  await db.close();
+  await db.open();
 }
 
 
