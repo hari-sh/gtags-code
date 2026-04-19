@@ -2,34 +2,16 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Run Extension (Debug Mode)",
+			"name": "Run Extension",
 			"type": "extensionHost",
 			"request": "launch",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}"
 			],
-			"env": {
-				"GTAGS_MODE": "debug"
-			}
-		},
-		{
-			"name": "Run Extension (Production Mode)",
-			"type": "extensionHost",
-			"request": "launch",
-			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}"
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
 			],
-			"env": {
-				"GTAGS_MODE": "prod"
-			}
-		},
-		{
-			"name": "Run Extension (Auto)",
-			"type": "extensionHost",
-			"request": "launch",
-			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}"
-			]
+			"preLaunchTask": "npm: bundle"
 		}
 	]
 }

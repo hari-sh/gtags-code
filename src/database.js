@@ -1,20 +1,21 @@
 const path = require('path');
 
-let ClassicLevel;
+const fssync = require('fs');
 
-if (__dirname.includes('src')) {
-  // Debug mode: use standard classic-level from node_modules
-  ClassicLevel = require('classic-level').ClassicLevel;
-} else {
-  // Prod mode: patch node-gyp-build to use local prebuilds
+const prebuildsDir = path.join(__dirname, 'prebuilds');
+const isProd = fssync.existsSync(prebuildsDir);
+
+if (isProd) {
+  // Prod mode: patch node-gyp-build to use local prebuilds safely bounded by filesystem presence
   const nodeGypBuild = require('node-gyp-build');
   const originalNodeGypBuild = nodeGypBuild;
   const nodeGypBuildPath = require.resolve('node-gyp-build');
   require.cache[nodeGypBuildPath].exports = function (p) {
-    return originalNodeGypBuild(p || path.join(__dirname, 'prebuilds'));
+    return originalNodeGypBuild(p || prebuildsDir);
   };
-  ClassicLevel = require('classic-level').ClassicLevel;
 }
+
+const { ClassicLevel } = require('classic-level');
 
 const fs = require('fs').promises;
 const { tokenize } = require('./tokens');
