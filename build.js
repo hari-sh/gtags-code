@@ -20,12 +20,13 @@ for (const target of targets) {
 }
 
 esbuild.build({
-  entryPoints: ['src/main.js', 'src/mcpServer.js'],
+  entryPoints: ['src/main.js'],
   bundle: true,
-  sourcemap: true,
+  minify: true,
+  sourcemap: false,
   platform: 'node',
   format: 'cjs',
-  outdir: 'dist',
+  outfile: 'dist/main.js',
   external: ['vscode', 'node-gyp-build'],
   banner: {
     js: `// Bundled VSCode extension with classic-level and node-gyp-build`,
