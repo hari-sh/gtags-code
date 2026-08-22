@@ -103,8 +103,20 @@ This opens a graphical panel displaying the call graph using D3.js, showing all 
 | `Gtags: Store Tags` | Parses `tags` file and creates `tagsdb` (LevelDB) |
 | `Gtags: Jump to Tag` | Jump to the selected tag definition |
 | `Gtags: Search Tag` | Search symbols interactively via Quick Pick |
-| `Gtags: Get References` | Get all References of the symbol under your cursor |
+| `Gtags: Get References` | Get all references for symbols, functions, and member expressions (`obj->field`, `obj.field`) |
 | `Gtags: Get Function Callers` | Display function callers in a graphical call graph |
+
+## Model Context Protocol (MCP) Server
+
+`gtags-code` includes a built-in MCP server running over `stdio` transport. When a workspace is open, AI assistants (such as Antigravity / Claude) can query code definitions, search workspace symbols, and find symbol/property references programmatically.
+
+### Available MCP Tools
+
+| MCP Tool | Description | Parameters |
+|----------|-------------|------------|
+| `gtags_get_definition` | Get definition file path, line, and column for a symbol | `symbol` (string, required) |
+| `gtags_search_symbols` | Search symbols matching a query term in `tagsdb` | `query` (string, required), `limit` (number, default: 20) |
+| `gtags_get_references` | Find all references of a symbol, function, variable, or member expression (`obj->field`, `obj.field`) | `symbol` (string, required) |
 
 ## Implementation Details
 

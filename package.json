@@ -4,7 +4,7 @@
   "icon": "gtags.png",
   "description": "gtags-code is a Visual Studio Code extension that integrates GNU Global (gtags) for efficient code navigation and symbol searching within your projects.",
   "publisher": "harikalyan",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -59,10 +59,6 @@
       {
         "command": "extension.getCallers",
         "title": "GTags: Get Callers"
-      },
-      {
-        "command": "extension.getSymbolReferences",
-        "title": "GTags: Get Symbol References"
       }
     ],
     "menus": {
@@ -81,11 +77,6 @@
           "command": "extension.getCallers",
           "when": "editorTextFocus",
           "group": "navigation"
-        },
-        {
-          "command": "extension.getSymbolReferences",
-          "when": "editorTextFocus",
-          "group": "navigation"
         }
       ]
     }
@@ -97,6 +88,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "classic-level": "^3.0.0",
     "node-gyp-build": "^4.8.4"
   },

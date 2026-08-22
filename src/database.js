@@ -115,7 +115,7 @@ async function batchWriteIntoDB(data) {
   }
 }
 
-async function getIds(words, signal) {
+async function getIds(words, signal, limit = 20) {
   const groups = await Promise.all(words.map(async (word) => {
     if (signal?.aborted) { const e = new Error('Aborted'); e.name = 'AbortError'; throw e; }
     const ilist = [];
@@ -125,15 +125,15 @@ async function getIds(words, signal) {
     }
     return ilist;
   }));
-  return getTopIntersections(groups, signal);
+  return getTopIntersections(groups, signal, limit);
 }
 
 
-const searchQuery = async (query, signal) => {
+const searchQuery = async (query, signal, limit = 20) => {
   const terms = tokenize(query);
   if (terms.length === 0) return [];
 
-  const ids = await getIds(terms, signal);
+  const ids = await getIds(terms, signal, limit);
   if (signal?.aborted) { const e = new Error('Aborted'); e.name = 'AbortError'; throw e; }
 
   const rawResults = await Promise.all(ids.map(async (id) => {
