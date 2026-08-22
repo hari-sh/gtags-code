@@ -121,17 +121,34 @@ This opens a graphical panel displaying the call graph using D3.js, showing all 
 | `Gtags: Get References` | Get all references for symbols, functions, and member expressions (`obj->field`, `obj.field`) |
 | `Gtags: Get Function Callers` | Display function callers in a graphical call graph |
 
-## Model Context Protocol (MCP) Server
+## AI & Language Model Tools (Copilot Chat & MCP)
 
-`gtags-code` includes a built-in MCP server running over `stdio` transport. When a workspace is open, AI assistants (such as Antigravity / Claude) can query code definitions, search workspace symbols, and find symbol/property references programmatically.
+`gtags-code` provides native integration for AI assistants through both **VS Code Language Model Tools** (for GitHub Copilot and VS Code Chat) and a standalone **Model Context Protocol (MCP)** server (for Claude Desktop, Antigravity, and Cursor).
 
-### Available MCP Tools
+### Available Tools
 
-| MCP Tool | Description | Parameters |
-|----------|-------------|------------|
-| `gtags_get_definition` | Get definition file path, line, and column for a symbol | `symbol` (string, required) |
+| Tool Name | Description | Parameters |
+|-----------|-------------|------------|
+| `gtags_get_definition` | Get definition file path, line, and column for a symbol from `tagsdb` | `symbol` (string, required) |
 | `gtags_search_symbols` | Search symbols matching a query term in `tagsdb` | `query` (string, required), `limit` (number, default: 20) |
 | `gtags_get_references` | Find all references of a symbol, function, variable, or member expression (`obj->field`, `obj.field`) | `symbol` (string, required) |
+
+### 1. GitHub Copilot & VS Code Chat
+When installed in VS Code, `gtags-code` automatically contributes and registers these tools with VS Code's Language Model Tools API (`vscode.lm.registerTool`). Copilot Chat can directly invoke them during your conversations.
+
+### 2. Standalone MCP Server (Claude Desktop / Antigravity / Cursor)
+To use `gtags-code` with external MCP clients, configure your MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "gtags": {
+      "command": "node",
+      "args": ["<path-to-gtags-code>/src/mcpServer.js", "/path/to/workspace"]
+    }
+  }
+}
+```
 
 ## Implementation Details
 

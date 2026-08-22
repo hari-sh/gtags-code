@@ -6,7 +6,7 @@
   "publisher": "harikalyan",
   "version": "0.3.1",
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.90.0"
   },
   "categories": [
     "Programming Languages",
@@ -19,6 +19,63 @@
   "activationEvents": [],
   "main": "./dist/main.js",
   "contributes": {
+    "languageModelTools": [
+      {
+        "name": "gtags_get_definition",
+        "displayName": "GTags: Get Symbol Definition",
+        "modelDescription": "Get the definition (file path, line, and column) of a symbol (function, variable, type, etc.) from the workspace tags database.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "symbol": {
+              "type": "string",
+              "description": "The exact name of the symbol to query."
+            }
+          },
+          "required": [
+            "symbol"
+          ]
+        }
+      },
+      {
+        "name": "gtags_search_symbols",
+        "displayName": "GTags: Search Workspace Symbols",
+        "modelDescription": "Search symbols in the workspace tags database matching a query term or pattern.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Partial name or search term for symbol lookup."
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of results to return (default: 20)."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "gtags_get_references",
+        "displayName": "GTags: Find Symbol References",
+        "modelDescription": "Find all references of a symbol, function, variable, or member expression (supporting obj->field or obj.field) across the workspace using GNU Global.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "symbol": {
+              "type": "string",
+              "description": "The symbol or member expression to query references for (e.g. foo, obj->field, obj.field)."
+            }
+          },
+          "required": [
+            "symbol"
+          ]
+        }
+      }
+    ],
     "configuration": {
       "title": "gtags-code configuration",
       "properties": {

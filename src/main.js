@@ -61,15 +61,13 @@ module.exports = {
     context.subscriptions.push(vscode.commands.registerCommand('extension.getReferences', getReferences));
     context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => getCallers(context)));
 
-    // Start MCP server if workspace is open
-    if (workspaceFolder) {
-      try {
-        const { startMcpServer } = require('./mcpServer');
-        startMcpServer(workspaceFolder.uri.fsPath);
-        channel.appendLine('GTags MCP Server started over stdio transport.');
-      } catch (err) {
-        channel.appendLine(`Failed to start GTags MCP Server: ${err.message}`);
-      }
+    // Register VS Code Language Model Tools for GitHub Copilot & VS Code Chat
+    try {
+      const { registerLanguageModelTools } = require('./lmTools');
+      registerLanguageModelTools(context);
+      channel.appendLine('GTags Language Model Tools registered for Copilot / Chat.');
+    } catch (err) {
+      channel.appendLine(`Failed to register GTags Language Model Tools: ${err.message}`);
     }
   },
   deactivate() {
