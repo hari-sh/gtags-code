@@ -5,9 +5,7 @@ const readline = require('readline');
 const { spawn } = require('child_process');
 const { getDB, initDB, cleanDB, closeDB, openDB, batchWriteIntoDB } = require('./database');
 const { preflight, cleanGtagsFiles, ensureCtagsAvailable } = require('./preflight');
-const { tokenize } = require('./tokens');
-const { performance } = require('perf_hooks');
-const { elapsedTime } = require('./utils');
+const { tokenize, elapsedTime } = require('./utils');
 const BatchWriter = require('./batchWriter');
 const exts = new Set(['.c', '.cpp', '.h', '.hpp', '.cc', '.hh', '.cxx', '.hxx']);
 

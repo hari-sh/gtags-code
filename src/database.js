@@ -18,7 +18,7 @@ if (isProd) {
 const { ClassicLevel } = require('classic-level');
 
 const fs = require('fs').promises;
-const { tokenize } = require('./tokens');
+const { tokenize } = require('./utils');
 const { getTopIntersections } = require('./search');
 
 let db;

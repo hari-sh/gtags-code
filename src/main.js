@@ -60,15 +60,6 @@ module.exports = {
     context.subscriptions.push(vscode.commands.registerCommand('extension.jumpTag', goToDefinition));
     context.subscriptions.push(vscode.commands.registerCommand('extension.getReferences', getReferences));
     context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => getCallers(context)));
-
-    // Register VS Code Language Model Tools for GitHub Copilot & VS Code Chat
-    try {
-      const { registerLanguageModelTools } = require('./lmTools');
-      registerLanguageModelTools(context);
-      channel.appendLine('GTags Language Model Tools registered for Copilot / Chat.');
-    } catch (err) {
-      channel.appendLine(`Failed to register GTags Language Model Tools: ${err.message}`);
-    }
   },
   deactivate() {
     closeDB();
