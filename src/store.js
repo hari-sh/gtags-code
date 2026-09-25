@@ -27,7 +27,7 @@ async function runCtags(root, files, channel, ctagsCmd) {
         return;
     }
     channel.appendLine('Running Ctags...');
-    const p = spawn(ctagsCmd, ['-L', '-', '-f', '-', '--kinds-C=v', '--kinds-C++=v', '--verbose=yes'], { cwd: root });
+    const p = spawn(ctagsCmd, ['-L', '-', '-f', '-', '-n', '--kinds-C=v', '--kinds-C++=v', '--verbose=yes'], { cwd: root });
 
     for (const f of files) {
         p.stdin.write(f + '\n');
@@ -60,7 +60,6 @@ async function runCtags(root, files, channel, ctagsCmd) {
         crlfDelay: Infinity
     });
 
-    const db = getDB();
     const batchSize = 200000;
     const batchWriter = new BatchWriter(batchSize, (processed) => {
         channel.appendLine(`${processed} variables processed...`);
@@ -72,26 +71,25 @@ async function runCtags(root, files, channel, ctagsCmd) {
                 continue;
             }
             const parts = line.split('\t');
-            if (parts.length < 4) {
-                console.warn("Malformed line (parts < 4):", line);
+            if (parts.length < 3) {
+                console.warn("Malformed line (parts < 3):", line);
                 continue;
             }
             const tagName = parts[0];
             const file = parts[1];
+            const lineNo = parseInt(parts[2], 10);
 
-            if (!tagName || !file) {
-                console.warn("Invalid tagName/file:", line);
+            if (!tagName || !file || isNaN(lineNo)) {
+                console.warn("Invalid tagName/file/lineNo:", line);
                 continue;
             }
 
-            // Extract pattern from /^pattern$/ format, keeping ^ and $
-            const pattern = parts[2].replace(/^[^/]*\/(.*)\/[^/]*$/, '$1');
             await batchWriter.add({
                 type: 'put',
                 key: `tag:${tagName}`,
                 value: {
                     file,
-                    pattern
+                    line: lineNo
                 }
             });
         } catch (err) {
@@ -149,7 +147,6 @@ async function runGlobal(root, channel, globalCmd) {
         crlfDelay: Infinity
     });
 
-    const db = getDB();
     const batchSize = 200000;
     const batchWriter = new BatchWriter(batchSize, (processed) => {
         channel.appendLine(`${processed} symbols processed...`);
@@ -168,27 +165,20 @@ async function runGlobal(root, channel, globalCmd) {
             }
 
             const tagName = parts[0];
+            const lineNo = parseInt(parts[1], 10);
             const file = parts[2];
 
-            if (!tagName || !file) {
-                console.warn("Invalid tagName/file:", line);
+            if (!tagName || !file || isNaN(lineNo)) {
+                console.warn("Invalid tagName/file/lineNo:", line);
                 continue;
             }
-
-            const patternStartIndex = line.indexOf(file);
-            if (patternStartIndex < 0) {
-                console.warn("File not found in line:", line);
-                continue;
-            }
-
-            const pattern = '^' + line.slice(patternStartIndex + file.length + 1).trim() + '$';
 
             await batchWriter.add({
                 type: 'put',
                 key: `tag:${tagName}`,
                 value: {
                     file,
-                    pattern
+                    line: lineNo
                 }
             });
         } catch (err) {
