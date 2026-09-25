@@ -16,79 +16,8 @@
     "type": "git",
     "url": "https://github.com/hari-sh/gtags-code"
   },
-  "activationEvents": [
-    "onLanguageModelTool:gtags_get_definition",
-    "onLanguageModelTool:gtags_search_symbols",
-    "onLanguageModelTool:gtags_get_references"
-  ],
   "main": "./dist/main.js",
   "contributes": {
-    "languageModelTools": [
-      {
-        "name": "gtags_get_definition",
-        "displayName": "GTags: Get Symbol Definition",
-        "toolReferenceName": "gtagsDefinition",
-        "canBeReferencedInPrompt": true,
-        "userDescription": "Get symbol definition from workspace tags database.",
-        "modelDescription": "Get the definition (file path, line, and column) of a symbol (function, variable, type, etc.) from the workspace tags database.",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "symbol": {
-              "type": "string",
-              "description": "The exact name of the symbol to query."
-            }
-          },
-          "required": [
-            "symbol"
-          ]
-        }
-      },
-      {
-        "name": "gtags_search_symbols",
-        "displayName": "GTags: Search Workspace Symbols",
-        "toolReferenceName": "gtagsSearch",
-        "canBeReferencedInPrompt": true,
-        "userDescription": "Search matching symbols in GNU Global tags database.",
-        "modelDescription": "Search symbols in the workspace tags database matching a query term or pattern.",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "query": {
-              "type": "string",
-              "description": "Partial name or search term for symbol lookup."
-            },
-            "limit": {
-              "type": "number",
-              "description": "Maximum number of results to return (default: 20)."
-            }
-          },
-          "required": [
-            "query"
-          ]
-        }
-      },
-      {
-        "name": "gtags_get_references",
-        "displayName": "GTags: Find Symbol References",
-        "toolReferenceName": "gtagsReferences",
-        "canBeReferencedInPrompt": true,
-        "userDescription": "Find all references of a symbol or member expression using GNU Global.",
-        "modelDescription": "Find all references of a symbol, function, variable, or member expression (supporting obj->field or obj.field) across the workspace using GNU Global.",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "symbol": {
-              "type": "string",
-              "description": "The symbol or member expression to query references for (e.g. foo, obj->field, obj.field)."
-            }
-          },
-          "required": [
-            "symbol"
-          ]
-        }
-      }
-    ],
     "configuration": {
       "title": "gtags-code configuration",
       "properties": {
@@ -158,7 +87,6 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
     "classic-level": "^3.0.0",
     "node-gyp-build": "^4.8.4"
   },
