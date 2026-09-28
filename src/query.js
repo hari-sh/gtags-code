@@ -46,34 +46,91 @@ function getTag(editor) {
     return tag;
 }
 
-async function jumputil(editor, context, key) {
-    if (!key) return;
-    const value = await getValueFromDb(`tag:${key}`);
-    if (value) {
-        console.log('Found:', value);
-        const options = [value].map(tag => {
-            if (!path.isAbsolute(tag.file)) {
-                const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-                if (workspaceFolder) {
-                    tag.file = path.join(workspaceFolder.uri.fsPath, tag.file);
+async function queryTagDefinitions(workspaceFolder, key, globalCmd = 'global') {
+    if (!key || !key.trim()) return [];
+
+    const streamGlobal = (args) => new Promise((resolve) => {
+        const results = [];
+        const proc = spawn(globalCmd, args, { cwd: workspaceFolder });
+        const rl = readline.createInterface({
+            input: proc.stdout,
+            crlfDelay: Infinity
+        });
+
+        rl.on('line', (line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return;
+
+            const parts = trimmed.split(/\s+/);
+            if (parts.length >= 3) {
+                const tagName = parts[0];
+                const lineNo = parseInt(parts[1], 10);
+                const file = parts[2];
+                const code = parts.slice(3).join(' ');
+
+                if (file && !isNaN(lineNo)) {
+                    const fullPath = path.isAbsolute(file) ? file : path.join(workspaceFolder, file);
+                    results.push({
+                        tagName,
+                        file: fullPath,
+                        line: lineNo,
+                        code
+                    });
                 }
             }
-            tag.description = `Line ${tag.line}`;
-            tag.label = tag.file;
-            tag.detail = `${tag.file}:${tag.line}`;
-            return tag;
         });
-        if (!options.length) {
-            return vscode.window.showInformationMessage(`gtags-code: No tags found for ${key}`);
-        } else if (options.length === 1) {
-            return revealInCode(context, editor, options[0]);
-        } else {
-            return vscode.window.showQuickPick(options).then(opt => {
-                return revealInCode(context, editor, opt);
-            });
-        }
+
+        proc.on('close', () => resolve(results));
+        proc.on('error', (err) => {
+            console.error(`gtags-code: Error spawning ${globalCmd}:`, err);
+            resolve([]);
+        });
+    });
+
+    let matches = await streamGlobal(['-xd', key.trim()]);
+    if (matches.length === 0) {
+        matches = await streamGlobal(['-x', key.trim()]);
+    }
+    return matches;
+}
+
+async function jumputil(editor, context, key) {
+    if (!key) return;
+
+    const config = vscode ? vscode.workspace.getConfiguration('gtags-code') : null;
+    const globalCmd = (config && config.get('globalCmd')) || 'global';
+    const workspaceFolder = vscode?.workspace?.workspaceFolders?.[0]?.uri?.fsPath || process.cwd();
+
+    const matches = await queryTagDefinitions(workspaceFolder, key, globalCmd);
+
+    if (!matches || matches.length === 0) {
+        return vscode?.window?.showInformationMessage(`gtags-code: No tags found for ${key}`);
+    }
+
+    const options = matches.map(tag => {
+        const relPath = vscode?.workspace?.workspaceFolders?.[0]
+            ? path.relative(vscode.workspace.workspaceFolders[0].uri.fsPath, tag.file)
+            : tag.file;
+
+        return {
+            file: tag.file,
+            line: tag.line,
+            label: relPath,
+            description: `Line ${tag.line}`,
+            detail: tag.code || `${relPath}:${tag.line}`
+        };
+    });
+
+    if (options.length === 1) {
+        return revealInCode(context, editor, options[0]);
     } else {
-        console.log('Key not found');
+        return vscode.window.showQuickPick(options, {
+            placeHolder: `Select definition for ${key}`
+        }).then(opt => {
+            if (opt) {
+                return revealInCode(context, editor, opt);
+            }
+        });
     }
 }
 
@@ -292,5 +349,6 @@ module.exports = {
     getSymbolReferencesInternal,
     handleSearchTagsCommand,
     queryReferences,
-    querySymbolReferences
+    querySymbolReferences,
+    queryTagDefinitions
 };
