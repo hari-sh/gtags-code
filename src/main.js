@@ -72,7 +72,11 @@ module.exports = {
     context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => getCallers(context, gtagsProvider)));
     
     context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider('gtags.panelView', gtagsProvider)
+      vscode.window.registerWebviewViewProvider('gtags.panelView', gtagsProvider, {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
+      })
     );
   },
   deactivate() {
