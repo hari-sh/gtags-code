@@ -3,8 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>D3 Signal Plot Workspace</title>
-<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<title>Gtags Code View</title>
+<link rel="stylesheet" href="treeview.css" />
+<script src="d3.js"></script>
+<script src="d3-flextree.js"></script>
+<script src="treeview.js"></script>
 <style>
   :root {
     --bg: #1e1e1e;
@@ -14,10 +17,6 @@
     --text: #cccccc;
     --muted: #858585;
     --accent: #007acc;
-    --plot-bg: #1e1e1e;
-    --grid: #333333;
-    --axis: #777777;
-    --line: #4fc3f7;
   }
 
   * { box-sizing: border-box; }
@@ -128,7 +127,7 @@
     transform: translateY(-50%);
     width: 16px;
     height: 16px;
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: center;
     border: 0;
@@ -137,13 +136,11 @@
     color: var(--muted);
     font-size: 14px;
     line-height: 1;
-    opacity: 0;
     cursor: pointer;
-    transition: opacity 0.12s, background 0.12s, color 0.12s;
   }
 
   .tab:hover .close-tab {
-    opacity: 1;
+    display: flex;
   }
 
   .close-tab:hover {
@@ -151,26 +148,7 @@
     color: #ffffff;
   }
 
-  .add-tab {
-    width: 34px;
-    height: 34px;
-    margin-top: 6px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    background: transparent;
-    color: var(--muted);
-    font-size: 22px;
-    line-height: 1;
-    cursor: pointer;
-  }
-
-  .add-tab:hover {
-    color: white;
-    background: var(--panel-hover);
-    border-color: #555;
-  }
-
-  /* Plot area */
+  /* Workspace area */
   .workspace {
     flex: 1;
     min-width: 0;
@@ -194,58 +172,20 @@
     font-weight: 500;
   }
 
-  .hint {
-    margin-left: auto;
-    color: var(--muted);
-  }
-
-  .plot-container {
+  .tab-container {
     position: relative;
     flex: 1;
     min-height: 0;
-    background: var(--plot-bg);
+    background: var(--bg);
   }
 
-  svg {
-    display: block;
-    width: 100%;
+  .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     height: 100%;
-  }
-
-  .grid line {
-    stroke: var(--grid);
-    stroke-opacity: 0.8;
-    shape-rendering: crispEdges;
-  }
-
-  .grid path {
-    display: none;
-  }
-
-  .axis path,
-  .axis line {
-    stroke: var(--axis);
-  }
-
-  .axis text {
-    fill: var(--muted);
-    font-size: 11px;
-  }
-
-  .signal {
-    fill: none;
-    stroke: var(--line);
-    stroke-width: 2;
-    vector-effect: non-scaling-stroke;
-  }
-
-  .zoom-overlay {
-    fill: transparent;
-    cursor: grab;
-  }
-
-  .zoom-overlay:active {
-    cursor: grabbing;
+    color: var(--muted);
+    font-size: 13px;
   }
 </style>
 </head>
@@ -255,230 +195,185 @@
   <aside id="sidebar" class="sidebar">
     <div id="sidebarResizer" class="sidebar-resizer" title="Drag to resize"></div>
     <div id="tabs" class="tabs"></div>
-    <button id="addTab" class="add-tab" title="New plot">+</button>
   </aside>
 
   <main class="workspace">
     <div class="toolbar">
       <span id="plotTitle" class="plot-title"></span>
-      <span class="hint">Drag to pan · Scroll to zoom</span>
     </div>
-    <div id="plotContainer" class="plot-container"></div>
+    <div id="plotContainer" class="tab-container"></div>
   </main>
 </div>
 
 <script>
-const plots = [];
-let activePlotId = null;
+const vscode = acquireVsCodeApi();
 
-const titleWords = [
-  "signal", "wave", "trace", "channel", "spectrum",
-  "sample", "capture", "noise", "power", "frequency",
-  "amplitude", "phase", "rf", "data", "test"
-];
-
-function randomWord() {
-  return titleWords[Math.floor(Math.random() * titleWords.length)];
-}
-
-function randomTitle() {
-  return `${randomWord()}_${randomWord()}_${randomWord()}`;
-}
+const items = [];
+let activeId = null;
 
 const sidebarEl = document.getElementById("sidebar");
 const sidebarResizerEl = document.getElementById("sidebarResizer");
 const tabsEl = document.getElementById("tabs");
-const addTabEl = document.getElementById("addTab");
 const plotTitleEl = document.getElementById("plotTitle");
 const plotContainerEl = document.getElementById("plotContainer");
 
-function randomData(count = 300) {
-  let y = 0;
+const pending = new Map();
 
-  return d3.range(count).map(x => {
-    y += (Math.random() - 0.5) * 1.2;
+window.addEventListener('message', event => {
+  const message = event.data;
+  switch (message.type) {
+    case 'addTab':
+      createTab(message.symbol);
+      break;
+    case 'getTags:response':
+      const resolve = pending.get(message.id);
+      if (resolve) {
+        pending.delete(message.id);
+        resolve(message.data);
+      }
+      break;
+  }
+});
 
-    return {
-      x,
-      y: y + Math.sin(x * 0.08) * 2
-    };
+function getTags(tagName) {
+  return new Promise(resolve => {
+    const id = Math.random().toString(36);
+    pending.set(id, resolve);
+    vscode.postMessage({
+      type: 'getTags',
+      id,
+      tagName
+    });
   });
 }
 
-function createPlot() {
-  const plot = {
+window.postFileData = function (tagData) {
+  vscode.postMessage({
+    type: 'postFileInfo',
+    data: tagData
+  });
+};
+
+function createTab(symbolName) {
+  const item = {
     id: crypto.randomUUID(),
-    name: randomTitle(),
-    data: randomData(),
-    zoomTransform: d3.zoomIdentity
+    name: symbolName
   };
 
-  plots.push(plot);
-  selectPlot(plot.id);
+  const container = document.createElement('div');
+  container.style.width = '100%';
+  container.style.height = '100%';
+  container.style.display = 'block'; // Ensure it has dimensions when Markmap is created
+  container.id = `container-${item.id}`;
+  
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.id = `mindmap-${item.id}`;
+  svg.style.width = '100%';
+  svg.style.height = '100%';
+  container.appendChild(svg);
+  
+  plotContainerEl.appendChild(container);
+  
+  // Make sure it's the active tab so it displays properly
+  items.push(item);
+  selectItem(item.id);
+
+  // Now create the mindmap while container is visible
+  item.container = container;
+  item.mm = window.markmap.Markmap.create(
+    `svg#mindmap-${item.id}`,
+    window.getTags,
+    window.postFileData,
+    item.name
+  );
 }
 
-function selectPlot(id) {
-  activePlotId = id;
+function selectItem(id) {
+  activeId = id;
   renderTabs();
-  renderPlot();
+  renderContent();
 }
 
-function closePlot(id) {
-  const index = plots.findIndex(p => p.id === id);
+function closeItem(id) {
+  const index = items.findIndex(p => p.id === id);
   if (index === -1) return;
 
-  plots.splice(index, 1);
+  const item = items[index];
+  if (item.mm && typeof item.mm.destroy === 'function') {
+    item.mm.destroy();
+  }
+  if (item.container && item.container.parentNode) {
+    item.container.parentNode.removeChild(item.container);
+  }
 
-  if (plots.length === 0) {
-    activePlotId = null;
+  items.splice(index, 1);
+
+  if (items.length === 0) {
+    activeId = null;
     plotTitleEl.textContent = "";
-    plotContainerEl.innerHTML = "";
+    plotContainerEl.innerHTML = "<div class='empty-state'>Select a symbol to view callers</div>";
     renderTabs();
     return;
   }
 
-  if (activePlotId === id) {
-    const nextIndex = Math.min(index, plots.length - 1);
-    activePlotId = plots[nextIndex].id;
+  if (activeId === id) {
+    const nextIndex = Math.min(index, items.length - 1);
+    activeId = items[nextIndex].id;
   }
 
   renderTabs();
-  renderPlot();
+  renderContent();
 }
 
 function renderTabs() {
   tabsEl.innerHTML = "";
 
-  for (const plot of plots) {
+  for (const item of items) {
     const tab = document.createElement("div");
-    tab.className = "tab" + (plot.id === activePlotId ? " active" : "");
-    tab.title = plot.name;
+    tab.className = "tab" + (item.id === activeId ? " active" : "");
+    tab.title = item.name;
 
     const label = document.createElement("span");
     label.className = "tab-label";
-    label.textContent = plot.name;
+    label.textContent = item.name;
 
     const close = document.createElement("button");
     close.className = "close-tab";
     close.type = "button";
-    close.title = "Close plot";
+    close.title = "Close tab";
     close.textContent = "×";
 
     close.addEventListener("click", event => {
       event.stopPropagation();
-      closePlot(plot.id);
+      closeItem(item.id);
     });
 
     tab.appendChild(label);
     tab.appendChild(close);
-    tab.addEventListener("click", () => selectPlot(plot.id));
+    tab.addEventListener("click", () => selectItem(item.id));
     tabsEl.appendChild(tab);
   }
 }
 
-function renderPlot() {
-  const plot = plots.find(p => p.id === activePlotId);
-  if (!plot) return;
-
-  plotTitleEl.textContent = plot.name;
-  plotContainerEl.innerHTML = "";
-
-  const rect = plotContainerEl.getBoundingClientRect();
-  const width = Math.max(300, rect.width);
-  const height = Math.max(250, rect.height);
-
-  const margin = {
-    top: 20,
-    right: 25,
-    bottom: 42,
-    left: 55
-  };
-
-  const innerWidth = width - margin.left - margin.right;
-  const innerHeight = height - margin.top - margin.bottom;
-
-  const svg = d3.select(plotContainerEl)
-    .append("svg")
-    .attr("viewBox", `0 0 ${width} ${height}`)
-    .attr("preserveAspectRatio", "none");
-
-  const root = svg.append("g")
-    .attr("transform", `translate(${margin.left},${margin.top})`);
-
-  const x = d3.scaleLinear()
-    .domain(d3.extent(plot.data, d => d.x))
-    .range([0, innerWidth]);
-
-  const y = d3.scaleLinear()
-    .domain(d3.extent(plot.data, d => d.y))
-    .nice()
-    .range([innerHeight, 0]);
-
-  const xAxis = root.append("g")
-    .attr("class", "axis")
-    .attr("transform", `translate(0,${innerHeight})`);
-
-  const yAxis = root.append("g")
-    .attr("class", "axis");
-
-  const xGrid = root.append("g")
-    .attr("class", "grid")
-    .attr("transform", `translate(0,${innerHeight})`);
-
-  const yGrid = root.append("g")
-    .attr("class", "grid");
-
-  const line = d3.line()
-    .x(d => x(d.x))
-    .y(d => y(d.y));
-
-  const path = root.append("path")
-    .datum(plot.data)
-    .attr("class", "signal");
-
-  function update(transform) {
-    const zx = transform.rescaleX(x);
-    const zy = transform.rescaleY(y);
-
-    xAxis.call(d3.axisBottom(zx).ticks(8));
-    yAxis.call(d3.axisLeft(zy).ticks(7));
-
-    xGrid.call(
-      d3.axisBottom(zx)
-        .ticks(8)
-        .tickSize(-innerHeight)
-        .tickFormat("")
-    );
-
-    yGrid.call(
-      d3.axisLeft(zy)
-        .ticks(7)
-        .tickSize(-innerWidth)
-        .tickFormat("")
-    );
-
-    path.attr(
-      "d",
-      d3.line()
-        .x(d => zx(d.x))
-        .y(d => zy(d.y))
-    );
+function renderContent() {
+  const activeItem = items.find(p => p.id === activeId);
+  
+  if (!activeItem) {
+    plotTitleEl.textContent = "";
+    document.querySelectorAll('.empty-state').forEach(el => el.style.display = 'flex');
+    return;
   }
 
-  const zoom = d3.zoom()
-    .scaleExtent([0.5, 40])
-    .on("zoom", event => {
-      plot.zoomTransform = event.transform;
-      update(event.transform);
-    });
+  const emptyStateEl = plotContainerEl.querySelector('.empty-state');
+  if (emptyStateEl) emptyStateEl.style.display = 'none';
+  
+  plotTitleEl.textContent = activeItem.name;
 
-  svg.call(zoom);
-
-  // Restore this plot's previous zoom/pan state.
-  svg.call(zoom.transform, plot.zoomTransform);
-
-  // Keep the plot usable when the window is resized.
-  // Re-rendering preserves plot.zoomTransform.
+  for (const item of items) {
+    if (item.container) {
+      item.container.style.display = item.id === activeId ? "block" : "none";
+    }
+  }
 }
 
 function getContentMaxWidth() {
@@ -488,7 +383,6 @@ function getContentMaxWidth() {
     return 180;
   }
 
-  // Measure the widest title without allowing the close icon to overlap it.
   const widest = Math.max(
     ...labels.map(label => {
       const clone = label.cloneNode(true);
@@ -503,7 +397,6 @@ function getContentMaxWidth() {
     })
   );
 
-  // Text + left/right padding + close icon + resize handle.
   return Math.max(180, Math.ceil(widest + 52));
 }
 
@@ -540,14 +433,9 @@ sidebarResizerEl.addEventListener("pointercancel", () => {
   document.body.style.userSelect = "";
 });
 
-addTabEl.addEventListener("click", createPlot);
+// Initialize empty state
+plotContainerEl.innerHTML = "<div class='empty-state'>Select a symbol to view callers</div>";
 
-window.addEventListener("resize", () => {
-  if (activePlotId) renderPlot();
-});
-
-// Start with one plot.
-createPlot();
 </script>
 </body>
 </html>

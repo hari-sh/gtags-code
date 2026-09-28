@@ -4,7 +4,7 @@ const fs = require('fs').promises;
 const { jump2tag, getReferencesInternal, handleSearchTagsCommand } = require('./query');
 const { initDB, closeDB } = require('./database');
 const { parseAndStoreTags } = require('./store');
-const { createPreview } = require('./callers');
+const { createPreview, getTag } = require('./callers');
 const { GtagsCodeViewProvider } = require('./gtagsCodePanel');
 const { ensureCtagsAvailable, preflight } =  require('./preflight');
 
@@ -45,9 +45,16 @@ async function getReferences(context) {
   await getReferencesInternal(context, editor);
 }
 
-async function getCallers(context) {
-  await createPreview(context);
+async function getCallers(context, provider) {
+  const editor = vscode.window.activeTextEditor;
+  const gtagSymbol = getTag(editor);
+  await vscode.commands.executeCommand('gtags.panelView.focus');
+  if (provider) {
+    provider.addTab(gtagSymbol || 'gtags-code');
+  }
 }
+
+let gtagsProvider;
 
 module.exports = {
   activate(context) {
@@ -60,10 +67,12 @@ module.exports = {
     context.subscriptions.push(vscode.commands.registerCommand('extension.searchTags', searchTags));
     context.subscriptions.push(vscode.commands.registerCommand('extension.jumpTag', goToDefinition));
     context.subscriptions.push(vscode.commands.registerCommand('extension.getReferences', getReferences));
-    context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => getCallers(context)));
-    const provider = new GtagsCodeViewProvider(context);
+    
+    gtagsProvider = new GtagsCodeViewProvider(context);
+    context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => getCallers(context, gtagsProvider)));
+    
     context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider('gtags.panelView', provider)
+      vscode.window.registerWebviewViewProvider('gtags.panelView', gtagsProvider)
     );
   },
   deactivate() {

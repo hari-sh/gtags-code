@@ -283,5 +283,8 @@ async function createPreview(context)  {
 }
 
 module.exports = {
-  createPreview
+  createPreview,
+  getTag,
+  getTagsRef,
+  postFileInfo
 };
