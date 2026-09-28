@@ -2,9 +2,10 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 
-class GtagsCodeViewProvider {
-  constructor(context) {
+class TagsCodeViewProvider {
+  constructor(context, tagsProvider) {
     this.context = context;
+    this.tagsProvider = tagsProvider;
     this.webviewView = null;
   }
 
@@ -35,7 +36,7 @@ class GtagsCodeViewProvider {
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       if (msg.type === 'getTags') {
         const { getTagsRef } = require('./callers');
-        const data = await getTagsRef(msg.tagName);
+        const data = await getTagsRef(msg.tagName, this.tagsProvider);
         webviewView.webview.postMessage({
           type: 'getTags:response',
           id: msg.id,
@@ -56,5 +57,5 @@ class GtagsCodeViewProvider {
 }
 
 module.exports = {
-  GtagsCodeViewProvider
+  TagsCodeViewProvider
 };

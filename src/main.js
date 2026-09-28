@@ -5,16 +5,19 @@ const { jump2tag, getReferencesInternal, handleSearchTagsCommand } = require('./
 const { initDB, closeDB } = require('./database');
 const { parseAndStoreTags } = require('./store');
 const { createPreview, getTag } = require('./callers');
-const { GtagsCodeViewProvider } = require('./gtagsCodePanel');
-const { preflight } =  require('./preflight');
+const { TagsCodeViewProvider } = require('./tagsCodePanel');
+const TagsProviderFactory = require('./providers/factory');
 
 const channel = vscode.window.createOutputChannel('gtags-code');
 const config = vscode.workspace.getConfiguration('gtags-code');
 
-const exeCmds = {
-  global: config.get('globalCmd') || 'global',
-  gtags: config.get('gtagsCmd') || 'gtags'
+const providerConfig = {
+  engine: config.get('engine') || 'gtags',
+  globalCmd: config.get('globalCmd') || 'global',
+  gtagsCmd: config.get('gtagsCmd') || 'gtags'
 };
+
+const tagsProvider = TagsProviderFactory.create(providerConfig);
 
 async function storeTags() {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -22,22 +25,22 @@ async function storeTags() {
     vscode.window.showErrorMessage('No workspace folder open');
     return;
   }
-  await preflight(exeCmds);
-  await parseAndStoreTags(channel, workspaceFolder.uri.fsPath, exeCmds);
+  await tagsProvider.checkDependencies();
+  await parseAndStoreTags(channel, workspaceFolder.uri.fsPath, tagsProvider);
 }
 
 async function searchTags(context) {
-  handleSearchTagsCommand(context)
+  handleSearchTagsCommand(context, tagsProvider);
 }
 
 async function goToDefinition(context) {
   const editor = vscode.window.activeTextEditor;
-  await jump2tag(context, editor);
+  await jump2tag(context, editor, tagsProvider);
 }
 
 async function getReferences(context) {
   const editor = vscode.window.activeTextEditor;
-  await getReferencesInternal(context, editor);
+  await getReferencesInternal(context, editor, tagsProvider);
 }
 
 async function getCallers(context, provider) {
@@ -49,7 +52,7 @@ async function getCallers(context, provider) {
   }
 }
 
-let gtagsProvider;
+let tagsCodePanelProvider;
 
 module.exports = {
   activate(context) {
@@ -63,11 +66,11 @@ module.exports = {
     context.subscriptions.push(vscode.commands.registerCommand('extension.jumpTag', goToDefinition));
     context.subscriptions.push(vscode.commands.registerCommand('extension.getReferences', getReferences));
     
-    gtagsProvider = new GtagsCodeViewProvider(context);
-    context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => getCallers(context, gtagsProvider)));
+    tagsCodePanelProvider = new TagsCodeViewProvider(context, tagsProvider);
+    context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => getCallers(context, tagsCodePanelProvider)));
     
     context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider('gtags.panelView', gtagsProvider, {
+      vscode.window.registerWebviewViewProvider('gtags.panelView', tagsCodePanelProvider, {
         webviewOptions: {
           retainContextWhenHidden: true
         }

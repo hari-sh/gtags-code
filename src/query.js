@@ -1,4 +1,3 @@
-const { spawn, exec } = require('child_process');
 const { getValueFromDb, getDB, batchWriteIntoDB, searchQuery } = require('./database');
 let vscode;
 try {
@@ -7,7 +6,6 @@ try {
     vscode = null;
 }
 const fs = require('fs');
-const readline = require('readline');
 const path = require('path');
 const os = require('os');
 
@@ -46,62 +44,16 @@ function getTag(editor) {
     return tag;
 }
 
-async function queryTagDefinitions(workspaceFolder, key, globalCmd = 'global') {
-    if (!key || !key.trim()) return [];
-
-    const streamGlobal = (args) => new Promise((resolve) => {
-        const results = [];
-        const proc = spawn(globalCmd, args, { cwd: workspaceFolder });
-        const rl = readline.createInterface({
-            input: proc.stdout,
-            crlfDelay: Infinity
-        });
-
-        rl.on('line', (line) => {
-            const trimmed = line.trim();
-            if (!trimmed) return;
-
-            const parts = trimmed.split(/\s+/);
-            if (parts.length >= 3) {
-                const tagName = parts[0];
-                const lineNo = parseInt(parts[1], 10);
-                const file = parts[2];
-                const code = parts.slice(3).join(' ');
-
-                if (file && !isNaN(lineNo)) {
-                    const fullPath = path.isAbsolute(file) ? file : path.join(workspaceFolder, file);
-                    results.push({
-                        tagName,
-                        file: fullPath,
-                        line: lineNo,
-                        code
-                    });
-                }
-            }
-        });
-
-        proc.on('close', () => resolve(results));
-        proc.on('error', (err) => {
-            console.error(`gtags-code: Error spawning ${globalCmd}:`, err);
-            resolve([]);
-        });
-    });
-
-    let matches = await streamGlobal(['-xd', key.trim()]);
-    if (matches.length === 0) {
-        matches = await streamGlobal(['-x', key.trim()]);
-    }
-    return matches;
+async function queryTagDefinitions(workspaceFolder, key, provider) {
+    return await provider.queryDefinitions(workspaceFolder, key);
 }
 
-async function jumputil(editor, context, key) {
+async function jumputil(editor, context, key, provider) {
     if (!key) return;
 
-    const config = vscode ? vscode.workspace.getConfiguration('gtags-code') : null;
-    const globalCmd = (config && config.get('globalCmd')) || 'global';
     const workspaceFolder = vscode?.workspace?.workspaceFolders?.[0]?.uri?.fsPath || process.cwd();
 
-    const matches = await queryTagDefinitions(workspaceFolder, key, globalCmd);
+    const matches = await queryTagDefinitions(workspaceFolder, key, provider);
 
     if (!matches || matches.length === 0) {
         return vscode?.window?.showInformationMessage(`gtags-code: No tags found for ${key}`);
@@ -134,7 +86,7 @@ async function jumputil(editor, context, key) {
     }
 }
 
-async function handleSearchTagsCommand(context) {
+async function handleSearchTagsCommand(context, provider) {
     const quickPick = vscode.window.createQuickPick();
     quickPick.placeholder = 'Search tags...';
     quickPick.matchOnDescription = true;
@@ -179,7 +131,7 @@ async function handleSearchTagsCommand(context) {
     quickPick.onDidAccept(() => {
         const selected = quickPick.selectedItems[0];
         if (selected) {
-            jumputil(vscode.window.activeTextEditor, context, selected.label);
+            jumputil(vscode.window.activeTextEditor, context, selected.label, provider);
         }
         quickPick.hide();
     });
@@ -188,10 +140,9 @@ async function handleSearchTagsCommand(context) {
     quickPick.show();
 }
 
-async function jump2tag(context) {
-    const editor = vscode.window.activeTextEditor;
+async function jump2tag(context, editor, provider) {
     const tag = getTag(editor);
-    return jumputil(editor, context, tag);
+    return jumputil(editor, context, tag, provider);
 }
 
 function getOrCreateTerminal(name) {
@@ -256,91 +207,29 @@ function displayMatchesInTerminal(symbol, matches, targetToHighlight) {
     }
 }
 
-async function queryReferences(workspaceFolder, symbol, globalCmd = 'global') {
-    if (!symbol || !symbol.trim()) return { matches: [], target: '' };
-
-    symbol = symbol.trim();
-    const match = symbol.match(/((?:->|\.)(\w+))$/);
-    let lastProperty, precedingPartWithDelimiter;
-    if (match) {
-        lastProperty = match[2];
-        precedingPartWithDelimiter = symbol.substring(0, symbol.length - lastProperty.length);
-    } else if (/^\w+$/.test(symbol)) {
-        lastProperty = symbol;
-        precedingPartWithDelimiter = '';
-    } else {
-        lastProperty = symbol;
-        precedingPartWithDelimiter = '';
-    }
-
-    const target = precedingPartWithDelimiter ? (precedingPartWithDelimiter + lastProperty) : lastProperty;
-    const seenLines = new Set();
-    const results = [];
-
-    const handleLine = (line) => {
-        const trimmed = line.trim();
-        if (!trimmed || seenLines.has(trimmed)) return;
-        seenLines.add(trimmed);
-
-        if (precedingPartWithDelimiter && !trimmed.includes(precedingPartWithDelimiter)) {
-            return;
-        }
-
-        const m = trimmed.match(/^([^:]+):(\d+):(.*)$/);
-        if (m) {
-            const [, file, lineNo, code] = m;
-            const fullPath = path.isAbsolute(file) ? file : path.join(workspaceFolder, file);
-            results.push({
-                file: fullPath,
-                line: parseInt(lineNo, 10),
-                code: code.trim()
-            });
-        }
-    };
-
-    const streamGlobal = (args) => new Promise((resolve) => {
-        const proc = spawn(globalCmd, args, { cwd: workspaceFolder });
-        const rl = readline.createInterface({
-            input: proc.stdout,
-            crlfDelay: Infinity
-        });
-        rl.on('line', handleLine);
-        proc.on('close', () => resolve());
-        proc.on('error', (err) => {
-            console.error(`gtags-code: Error spawning ${globalCmd}:`, err);
-            resolve();
-        });
-    });
-
-    await Promise.all([
-        streamGlobal(['--result=grep', '-xs', lastProperty]),
-        streamGlobal(['--result=grep', '-r', lastProperty])
-    ]);
-
-    return { matches: results, target };
+async function queryReferences(workspaceFolder, symbol, provider) {
+    return await provider.queryReferences(workspaceFolder, symbol);
 }
 
-async function querySymbolReferences(workspaceFolder, symbol, globalCmd = 'global') {
-    return queryReferences(workspaceFolder, symbol, globalCmd);
+async function querySymbolReferences(workspaceFolder, symbol, provider) {
+    return queryReferences(workspaceFolder, symbol, provider);
 }
 
-async function getReferencesInternal(context, editor, symbolOverride) {
+async function getReferencesInternal(context, editor, provider, symbolOverride) {
     const symbol = symbolOverride || getTag(editor);
     if (!symbol || !symbol.trim()) {
         if (vscode) vscode.window.showErrorMessage('No tag/symbol selected');
         return;
     }
 
-    const config = vscode ? vscode.workspace.getConfiguration('gtags-code') : null;
-    const globalCmd = (config && config.get('globalCmd')) || 'global';
     const workspaceFolder = vscode?.workspace?.workspaceFolders?.[0]?.uri?.fsPath || process.cwd();
 
-    const { matches, target } = await queryReferences(workspaceFolder, symbol, globalCmd);
+    const { matches, target } = await queryReferences(workspaceFolder, symbol, provider);
     displayMatchesInTerminal(symbol, matches, target);
 }
 
-async function getSymbolReferencesInternal(context, editor, symbol) {
-    return getReferencesInternal(context, editor, symbol);
+async function getSymbolReferencesInternal(context, editor, symbol, provider) {
+    return getReferencesInternal(context, editor, provider, symbol);
 }
 
 module.exports = {
