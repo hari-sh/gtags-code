@@ -4,15 +4,15 @@ const fs = require('fs').promises;
 const { jump2tag, getReferencesInternal, handleSearchTagsCommand } = require('./query');
 const { initDB, closeDB } = require('./database');
 const { parseAndStoreTags } = require('./store');
-const { createPreview } = require('./callers');
-const { ensureCtagsAvailable, preflight } =  require('./preflight');
+const { createPreview, getTag } = require('./callers');
+const { GtagsCodeViewProvider } = require('./gtagsCodePanel');
+const { preflight } =  require('./preflight');
 
 const channel = vscode.window.createOutputChannel('gtags-code');
 const config = vscode.workspace.getConfiguration('gtags-code');
 
 const exeCmds = {
   global: config.get('globalCmd') || 'global',
-  ctags: config.get('ctagsCmd') || 'ctags',
   gtags: config.get('gtagsCmd') || 'gtags'
 };
 
@@ -23,10 +23,6 @@ async function storeTags() {
     return;
   }
   await preflight(exeCmds);
-  const ctagsAvailable = await ensureCtagsAvailable(exeCmds.ctags);
-  if(!ctagsAvailable) {
-    exeCmds.ctags = null;
-  }
   await parseAndStoreTags(channel, workspaceFolder.uri.fsPath, exeCmds);
 }
 
@@ -44,9 +40,16 @@ async function getReferences(context) {
   await getReferencesInternal(context, editor);
 }
 
-async function getCallers(context) {
-  await createPreview(context);
+async function getCallers(context, provider) {
+  const editor = vscode.window.activeTextEditor;
+  const gtagSymbol = getTag(editor);
+  await vscode.commands.executeCommand('gtags.panelView.focus');
+  if (provider) {
+    provider.addTab(gtagSymbol || 'gtags-code');
+  }
 }
+
+let gtagsProvider;
 
 module.exports = {
   activate(context) {
@@ -59,7 +62,17 @@ module.exports = {
     context.subscriptions.push(vscode.commands.registerCommand('extension.searchTags', searchTags));
     context.subscriptions.push(vscode.commands.registerCommand('extension.jumpTag', goToDefinition));
     context.subscriptions.push(vscode.commands.registerCommand('extension.getReferences', getReferences));
-    context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => getCallers(context)));
+    
+    gtagsProvider = new GtagsCodeViewProvider(context);
+    context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => getCallers(context, gtagsProvider)));
+    
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider('gtags.panelView', gtagsProvider, {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
+      })
+    );
   },
   deactivate() {
     closeDB();

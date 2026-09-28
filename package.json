@@ -30,11 +30,6 @@
           "type": "string",
           "default": "gtags",
           "description": "Path to gtags executable."
-        },
-        "gtags-code.ctagsCmd": {
-          "type": "string",
-          "default": "ctags",
-          "description": "Path to ctags executable. If not set, variable indexing will be skipped."
         }
       }
     },
@@ -58,6 +53,10 @@
       {
         "command": "extension.getCallers",
         "title": "GTags: Get Callers"
+      },
+      {
+        "command": "extension.gtagsCode",
+        "title": "GTags: Open gtags-code"
       }
     ],
     "menus": {
@@ -76,6 +75,24 @@
           "command": "extension.getCallers",
           "when": "editorTextFocus",
           "group": "navigation"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "gtags-panel",
+          "title": "Gtags Code",
+          "icon": "gtags.png"
+        }
+      ]
+    },
+    "views": {
+      "gtags-panel": [
+        {
+          "type": "webview",
+          "id": "gtags.panelView",
+          "name": "gtags-code"
         }
       ]
     }

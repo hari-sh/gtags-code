@@ -37,34 +37,6 @@ function getVersionAsync(cmd, versionArgs = ["--version"]) {
     });
 }
 
-function ensureCtagsAvailable(ctagsCmd) {
-    return new Promise((resolve) => {
-        if (!ctagsCmd) {
-            resolve(false);
-            return;
-        }
-
-        let child;
-        try {
-            child = spawn(ctagsCmd, ['--version'], { shell: true });
-        } catch (err) {
-            resolve(false);
-            return;
-        }
-
-        child.on("error", () => {
-            resolve(false);
-        });
-
-        child.on("close", (code) => {
-            if (code === 0 || code === 1) {
-                resolve(true);
-            } else {
-                resolve(false);
-            }
-        });
-    });
-}
 
 async function preflight(exeCmds) {
     await getVersionAsync(exeCmds.global);
@@ -73,6 +45,5 @@ async function preflight(exeCmds) {
 
 module.exports = {
     cleanGtagsFiles,
-    preflight,
-    ensureCtagsAvailable
+    preflight
 };

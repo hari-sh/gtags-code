@@ -4,7 +4,7 @@ const path = require('path');
 const readline = require('readline');
 const { spawn } = require('child_process');
 const { getDB, initDB, cleanDB, closeDB, openDB, batchWriteIntoDB } = require('./database');
-const { preflight, cleanGtagsFiles, ensureCtagsAvailable } = require('./preflight');
+const { preflight, cleanGtagsFiles } = require('./preflight');
 const { tokenize, elapsedTime } = require('./utils');
 const BatchWriter = require('./batchWriter');
 const exts = new Set(['.c', '.cpp', '.h', '.hpp', '.cc', '.hh', '.cxx', '.hxx']);
@@ -21,86 +21,6 @@ async function getSourceFiles(dir, root, out = []) {
     return out;
 }
 
-async function runCtags(root, files, channel, ctagsCmd) {
-    if (!ctagsCmd) {
-        channel.appendLine('Ctags path is not enabled. Skipping variable indexing...');
-        return;
-    }
-    channel.appendLine('Running Ctags...');
-    const p = spawn(ctagsCmd, ['-L', '-', '-f', '-', '-n', '--kinds-C=v', '--kinds-C++=v', '--verbose=yes'], { cwd: root });
-
-    for (const f of files) {
-        p.stdin.write(f + '\n');
-    }
-    p.stdin.end();
-
-    let processed = 0;
-    const rlerr = readline.createInterface({
-        input: p.stderr,
-        crlfDelay: Infinity
-    });
-    rlerr.on('line', (line) => {
-        if (!line.trim()) {
-            return;
-        }
-        if (line.startsWith('OPENING')) {
-            processed++;
-            if (processed % 500 === 0) {
-                channel.appendLine(`${processed}/${files.length} files processed by ctags...`);
-            }
-            if (processed === files.length) {
-                channel.appendLine(`${processed}/${files.length} files processed by ctags...`);
-                channel.appendLine('Finalizing variable indexing...');
-            }
-        }
-    });
-
-    const rl = readline.createInterface({
-        input: p.stdout,
-        crlfDelay: Infinity
-    });
-
-    const batchSize = 200000;
-    const batchWriter = new BatchWriter(batchSize, (processed) => {
-        channel.appendLine(`${processed} variables processed...`);
-    });
-
-    for await (const line of rl) {
-        try {
-            if (!line.trim() || line.startsWith('!_TAG_')) {
-                continue;
-            }
-            const parts = line.split('\t');
-            if (parts.length < 3) {
-                console.warn("Malformed line (parts < 3):", line);
-                continue;
-            }
-            const tagName = parts[0];
-            const file = parts[1];
-            const lineNo = parseInt(parts[2], 10);
-
-            if (!tagName || !file || isNaN(lineNo)) {
-                console.warn("Invalid tagName/file/lineNo:", line);
-                continue;
-            }
-
-            await batchWriter.add({
-                type: 'put',
-                key: `tag:${tagName}`,
-                value: {
-                    file,
-                    line: lineNo
-                }
-            });
-        } catch (err) {
-            // **Critical safety**: catch ANY other errors but keep going
-            console.error("Error while processing line:", line, err);
-            continue;
-        }
-    }
-    await batchWriter.flush();
-    channel.appendLine('Variable indexing completed...');
-}
 
 async function runGtags(root, files, channel, gtagsCmd) {
     channel.appendLine('Running Gtags...');
@@ -195,10 +115,8 @@ async function parseToTagsFile(root, channel, exeCmds) {
     channel.appendLine('Finding Number of files to be indexed...');
     const files = await getSourceFiles(root, root);
     channel.appendLine(`Found ${files.length} source files(s) to index...`);
-    const ctagsPromise = runCtags(root, files, channel, exeCmds.ctags);
     await runGtags(root, files, channel, exeCmds.gtags);
     await runGlobal(root, channel, exeCmds.global);
-    await ctagsPromise;
 }
 
 async function assignIdsToVariables(channel) {

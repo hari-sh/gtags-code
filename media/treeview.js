@@ -543,7 +543,7 @@
       maxWidth: 0,
       nodeMinHeight: 16,
       paddingX: 8,
-      scrollForPan: isMacintosh,
+      scrollForPan: false,
       spacingHorizontal: 80,
       spacingVertical: 5,
       initialExpandLevel: -1,
