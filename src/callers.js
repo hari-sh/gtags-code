@@ -198,9 +198,10 @@ async function postFileInfo(tagData)  {
 
 async function createPreviewUtil(extensionPath, getTags, gtagSymbol)  {
      await ensureBottomGroup();
+     const panelTitle = gtagSymbol || 'gtags-code';
      const panel = vscode.window.createWebviewPanel(
-        gtagSymbol,
-        gtagSymbol,
+        'gtags-code',
+        'gtags-code',
         bottomViewColumn ?? vscode.ViewColumn.Active,
         {
           enableScripts: true,
@@ -236,7 +237,7 @@ async function createPreviewUtil(extensionPath, getTags, gtagSymbol)  {
         .replace(/src="treeview.js"/g, `src="${mediaPath}/treeview.js"`)
         .replace(/src="d3.js"/g, `src="${mediaPath}/d3.js"`)
         .replace(/src="d3-flextree.js"/g, `src="${mediaPath}/d3-flextree.js"`)
-        .replace("__SYMBOL__",JSON.stringify(gtagSymbol).slice(1, -1))
+        .replace("__SYMBOL__", JSON.stringify(gtagSymbol || '').slice(1, -1));
 
       panel.webview.html = html;
       panel.webview.onDidReceiveMessage(async (msg) => {

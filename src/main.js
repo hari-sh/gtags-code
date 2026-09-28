@@ -5,6 +5,7 @@ const { jump2tag, getReferencesInternal, handleSearchTagsCommand } = require('./
 const { initDB, closeDB } = require('./database');
 const { parseAndStoreTags } = require('./store');
 const { createPreview } = require('./callers');
+const { GtagsCodeViewProvider } = require('./gtagsCodePanel');
 const { ensureCtagsAvailable, preflight } =  require('./preflight');
 
 const channel = vscode.window.createOutputChannel('gtags-code');
@@ -60,6 +61,10 @@ module.exports = {
     context.subscriptions.push(vscode.commands.registerCommand('extension.jumpTag', goToDefinition));
     context.subscriptions.push(vscode.commands.registerCommand('extension.getReferences', getReferences));
     context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => getCallers(context)));
+    const provider = new GtagsCodeViewProvider(context);
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider('gtags.panelView', provider)
+    );
   },
   deactivate() {
     closeDB();
