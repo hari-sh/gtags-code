@@ -139,8 +139,7 @@ const searchQuery = async (query, signal, limit = 20) => {
   const rawResults = await Promise.all(ids.map(async (id) => {
     try {
       const variableName = await db.get(`id:${id}`);
-      const meta = await db.get(`tag:${variableName}`);
-      return { label: variableName, description: meta?.file || '' };
+      return { label: variableName, description: '' };
     } catch {
       console.log('Unable to get db value');
       return null;
