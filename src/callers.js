@@ -1,145 +1,57 @@
-const { spawn } = require("child_process");
+
+
 const vscode = require("vscode");
-const config = vscode.workspace.getConfiguration("gtags-code");
-const globalCmd = config.get("globalCmd") || "global";
 
 const fileFunctionCache = new Map();
-function runGlobal(args, cwd) {
-  return new Promise((resolve, reject) => {
-    const p = spawn(globalCmd, args, { cwd });
-
-    let out = "";
-    let err = "";
-
-    p.stdout.on("data", d => (out += d.toString()));
-    p.stderr.on("data", d => (err += d.toString()));
-
-    p.on("close", code => {
-      if (code !== 0 && !out) {
-        reject(err || `global ${args.join(" ")} failed`);
-        return;
-      }
-      resolve(out);
-    });
-  });
-}
-
-function parseGlobalX(output) {
-  return output
-    .trim()
-    .split("\n")
-    .filter(Boolean)
-    .map(line => {
-      const parts = line.trim().split(/\s+/);
-      return {
-        symbol: parts[0],
-        line: Number(parts[1]),
-        file: parts[2],
-        source: parts.slice(3).join(" ")
-      };
-    });
-}
-
 /* ------------------ cache ------------------ */
 
 /* ------------------ core logic ------------------ */
 
-async function getFunctionsInFile(file, cwd) {
+async function getFunctionsInFile(file, cwd, tagsProvider) {
   if (fileFunctionCache.has(file)) {
-    return fileFunctionCache.get(file);
+    return await fileFunctionCache.get(file);
   }
 
-  const out = await runGlobal(["-xf", file], cwd);
-  const funcs = parseGlobalX(out);
+  const funcsPromise = tagsProvider.getFunctionsInFile(cwd, file);
+  fileFunctionCache.set(file, funcsPromise);
 
-  fileFunctionCache.set(file, funcs);
-  return funcs;
+  return await funcsPromise;
 }
 
-async function getEnclosingFunction(file, line, cwd) {
-  const funcs = await getFunctionsInFile(file, cwd);
+async function getEnclosingFunction(file, line, cwd, tagsProvider) {
+  const funcs = await getFunctionsInFile(file, cwd, tagsProvider);
   return funcs.filter(f => f.line <= line).at(-1) || null;
 }
 
-async function getCallers(symbol, cwd) {
-  const out = await runGlobal(["-rx", symbol], cwd);
-  return parseGlobalX(out);
-}
-
-async function getCallersWithEnclosure(symbol, cwd) {
-  const callers = await getCallers(symbol, cwd);
-
-  for (const c of callers) {
-    const enclosing = await getEnclosingFunction(c.file, c.line, cwd);
-    c.enclosing = enclosing
-      ? {
-          name: enclosing.symbol,
-          line: enclosing.line
-        }
-      : null;
-  }
-
-  return callers;
-}
-
-function mapByEnclosingFull(callers) {
-  const map = new Map();
-
-  for (const c of callers) {
-    if (!c.enclosing) continue;
-
-    const keyObj = {
-      name: c.enclosing.name,
-      file: c.file,          // enclosing function file
-      line: c.line // enclosing function line
-    };
-
-    // stable string key
-    const key = `${keyObj.name}|${keyObj.file}|${keyObj.line}`;
-
-    if (!map.has(key)) {
-      map.set(key, {
-        enclosing: keyObj,
-        callers: []
-      });
-    }
-
-    map.get(key).callers.push(c);
-  }
-
-  return map;
-}
-
 const HEADERS_EXTENSIONS = [".h", ".hpp", ".hh", ".hxx"];
-
 function isHeaderFile(file) {
   return HEADERS_EXTENSIONS.some(ext => file.endsWith(ext));
 }
 
-function removeHeadersAndDuplicates(enclosed) {
-  const nonHeaders = enclosed.filter(
-    e => !isHeaderFile(e.file)
-  );
-  const nameCounts = new Map();
-  for (const e of nonHeaders) {
-    const name = e.name ?? null;
-    nameCounts.set(name, (nameCounts.get(name) || 0) + 1);
-  }
-  const uniqueEnclosed = nonHeaders.filter(
-    e => nameCounts.get(e.name) === 1
-  );
-  return uniqueEnclosed;
-}
+async function getEnclosingInfoArray(symbol, cwd, tagsProvider) {
+  const callers = await tagsProvider.getCallers(cwd, symbol);
+  
+  // 1. Immediately filter out headers to save unnecessary DB queries
+  const nonHeaderCallers = callers.filter(c => !isHeaderFile(c.file));
+  
+  // 2. Fetch enclosing functions concurrently
+  const enclosed = (await Promise.all(
+    nonHeaderCallers.map(async (c) => {
+      const enclosing = await getEnclosingFunction(c.file, c.line, cwd, tagsProvider);
+      return enclosing ? { name: enclosing.symbol, file: c.file, line: enclosing.line } : null;
+    })
+  )).filter(Boolean); // 3. Remove nulls
 
-function getEnclosingInfoArray(callers) {
-  const enclosed = callers
-    .filter(c => c.enclosing)
-    .map(c => ({
-      name: c.enclosing.name,
-      file: c.file,
-      line: c.enclosing.line
-    }));
-    return removeHeadersAndDuplicates(enclosed);
+  // 4. Remove self-references
+  const withoutSelf = enclosed.filter(e => e.name !== symbol);
+
+  // 5. Remove duplicates (only keep singletons)
+  const nameCounts = new Map();
+  for (const e of withoutSelf) {
+    nameCounts.set(e.name, (nameCounts.get(e.name) || 0) + 1);
+  }
+  
+  return withoutSelf.filter(e => nameCounts.get(e.name) === 1);
 }
 
 /* ------------------ webPanel.js ------------------ */
@@ -193,12 +105,11 @@ function getTag(editor) {
     return tag;
 }
 
-async function getTagsRef(tagName) {
+async function getTagsRef(tagName, tagsProvider) {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) return [];
-  const callerData = await getCallersWithEnclosure(tagName, workspaceFolder.uri.fsPath);
-  const  result = getEnclosingInfoArray(callerData);
-  return result.filter(obj => obj.name !== tagName);
+  
+  return await getEnclosingInfoArray(tagName, workspaceFolder.uri.fsPath, tagsProvider);
 }
 
 

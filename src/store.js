@@ -1,10 +1,6 @@
 const fs = require('fs').promises;
-const fssync = require('fs');
 const path = require('path');
-const readline = require('readline');
-const { spawn } = require('child_process');
-const { getDB, initDB, cleanDB, closeDB, openDB, batchWriteIntoDB } = require('./database');
-const { preflight, cleanGtagsFiles } = require('./preflight');
+const { cleanDB, openDB } = require('./database');
 const { tokenize, elapsedTime } = require('./utils');
 const BatchWriter = require('./batchWriter');
 const exts = new Set(['.c', '.cpp', '.h', '.hpp', '.cc', '.hh', '.cxx', '.hxx']);
@@ -22,51 +18,14 @@ async function getSourceFiles(dir, root, out = []) {
 }
 
 
-async function runGtags(root, files, channel, gtagsCmd) {
-    channel.appendLine('Running Gtags...');
-    const p = spawn(gtagsCmd, ['-v', '-f', '-'], { cwd: root });
-
-    let processed = 0;
-    const rl = readline.createInterface({
-        input: p.stderr,
-        crlfDelay: Infinity
-    });
-    rl.on('line', (line) => {
-        if (!line.trim()) {
-            return;
-        }
-        processed++;
-        if (processed % 500 === 0) {
-            channel.appendLine(`${processed}/${files.length} files processed by gtags...`);
-        }
-        if (processed === files.length) {
-            channel.appendLine(`${processed}/${files.length} files processed by gtags...`);
-        }
-    });
-
-    for (const f of files) {
-        p.stdin.write(f + '\n');
-    }
-    p.stdin.end();
-    return new Promise((resolve, reject) => {
-        p.on('close', (code) => {
-            if (code === 0) {
-                resolve();
-            } else {
-                reject(new Error(`gtags exited with code ${code}`));
-            }
-        });
-    });
-}
-
-async function runGlobal(root, channel, globalCmd) {
+async function parseToTagsFile(root, channel, provider) {
+    channel.appendLine('Finding Number of files to be indexed...');
+    const files = await getSourceFiles(root, root);
+    channel.appendLine(`Found ${files.length} source files(s) to index...`);
+    
+    await provider.generateTags(root, files, channel);
+    
     channel.appendLine('Indexing structure types and functions...');
-    const child = spawn(globalCmd, ['-c'], { cwd: root });
-    const rl = readline.createInterface({
-        input: child.stdout,
-        crlfDelay: Infinity
-    });
-
     const idWriter = new BatchWriter(200000, (processed) => {
         channel.appendLine(`${processed} IDs assigned...`);
     });
@@ -74,11 +33,8 @@ async function runGlobal(root, channel, globalCmd) {
     let ind = 0;
     const tokenMap = new Map();
 
-    for await (const line of rl) {
+    await provider.streamSymbols(root, channel, async (tagName) => {
         try {
-            const tagName = line.trim();
-            if (!tagName) continue;
-
             const varid = ind + 1;
             await idWriter.add({ type: 'put', key: `id:${varid}`, value: tagName });
             const tokens = new Set(tokenize(tagName));
@@ -92,10 +48,10 @@ async function runGlobal(root, channel, globalCmd) {
             }
             ind++;
         } catch (err) {
-            console.error("Error while processing line:", line, err);
-            continue;
+            console.error("Error while processing line:", err);
         }
-    }
+    });
+
     await idWriter.flush();
     
     channel.appendLine(`Created IDs for ${ind} symbols. Creating token index...`);
@@ -111,22 +67,13 @@ async function runGlobal(root, channel, globalCmd) {
     channel.appendLine('All structure types and functions are indexed...');
 }
 
-async function parseToTagsFile(root, channel, exeCmds) {
-    channel.appendLine('Finding Number of files to be indexed...');
-    const files = await getSourceFiles(root, root);
-    channel.appendLine(`Found ${files.length} source files(s) to index...`);
-    await runGtags(root, files, channel, exeCmds.gtags);
-    await runGlobal(root, channel, exeCmds.global);
-}
-
-
-async function parseAndStoreTags(channel, root, exeCmds) {
+async function parseAndStoreTags(channel, root, provider) {
     channel.show();
     const start = performance.now();
-    await cleanGtagsFiles(root, channel);
+    await provider.cleanWorkspace(root, channel);
     await cleanDB();
     await openDB();
-    await parseToTagsFile(root, channel, exeCmds);
+    await parseToTagsFile(root, channel, provider);
     channel.appendLine('Post processing symbols...');
     channel.appendLine('Tags DataBase created successfully...');
     elapsedTime(start, performance.now(), channel);
