@@ -10,8 +10,7 @@ const channel = {
 
 const exeCmds = {
     global : 'global',
-    gtags : 'gtags',
-    ctags : 'ctags',
+    gtags : 'gtags'
 };
 
 const root = argv[2];

@@ -6,14 +6,13 @@ const { initDB, closeDB } = require('./database');
 const { parseAndStoreTags } = require('./store');
 const { createPreview, getTag } = require('./callers');
 const { GtagsCodeViewProvider } = require('./gtagsCodePanel');
-const { ensureCtagsAvailable, preflight } =  require('./preflight');
+const { preflight } =  require('./preflight');
 
 const channel = vscode.window.createOutputChannel('gtags-code');
 const config = vscode.workspace.getConfiguration('gtags-code');
 
 const exeCmds = {
   global: config.get('globalCmd') || 'global',
-  ctags: config.get('ctagsCmd') || 'ctags',
   gtags: config.get('gtagsCmd') || 'gtags'
 };
 
@@ -24,10 +23,6 @@ async function storeTags() {
     return;
   }
   await preflight(exeCmds);
-  const ctagsAvailable = await ensureCtagsAvailable(exeCmds.ctags);
-  if(!ctagsAvailable) {
-    exeCmds.ctags = null;
-  }
   await parseAndStoreTags(channel, workspaceFolder.uri.fsPath, exeCmds);
 }
 
