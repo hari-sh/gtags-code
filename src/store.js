@@ -61,53 +61,53 @@ async function runGtags(root, files, channel, gtagsCmd) {
 
 async function runGlobal(root, channel, globalCmd) {
     channel.appendLine('Indexing structure types and functions...');
-    const child = spawn(globalCmd, ['-x', '.'], { cwd: root });
+    const child = spawn(globalCmd, ['-c'], { cwd: root });
     const rl = readline.createInterface({
         input: child.stdout,
         crlfDelay: Infinity
     });
 
-    const batchSize = 200000;
-    const batchWriter = new BatchWriter(batchSize, (processed) => {
-        channel.appendLine(`${processed} symbols processed...`);
+    const idWriter = new BatchWriter(200000, (processed) => {
+        channel.appendLine(`${processed} IDs assigned...`);
     });
+
+    let ind = 0;
+    const tokenMap = new Map();
 
     for await (const line of rl) {
         try {
-            if (!line.trim()) {
-                continue;
-            }
+            const tagName = line.trim();
+            if (!tagName) continue;
 
-            const parts = line.split(/\s+/);
-            if (parts.length < 3) {
-                console.warn("Malformed line (parts < 3):", line);
-                continue;
-            }
-
-            const tagName = parts[0];
-            const lineNo = parseInt(parts[1], 10);
-            const file = parts[2];
-
-            if (!tagName || !file || isNaN(lineNo)) {
-                console.warn("Invalid tagName/file/lineNo:", line);
-                continue;
-            }
-
-            await batchWriter.add({
-                type: 'put',
-                key: `tag:${tagName}`,
-                value: {
-                    file,
-                    line: lineNo
+            const varid = ind + 1;
+            await idWriter.add({ type: 'put', key: `id:${varid}`, value: tagName });
+            const tokens = new Set(tokenize(tagName));
+            for (const token of tokens) {
+                let ids = tokenMap.get(token);
+                if (!ids) {
+                    ids = [];
+                    tokenMap.set(token, ids);
                 }
-            });
+                ids.push(varid);
+            }
+            ind++;
         } catch (err) {
-            // **Critical safety**: catch ANY other errors but keep going
             console.error("Error while processing line:", line, err);
             continue;
         }
     }
-    await batchWriter.flush();
+    await idWriter.flush();
+    
+    channel.appendLine(`Created IDs for ${ind} symbols. Creating token index...`);
+
+    const tokenWriter = new BatchWriter(50000, (processed) => {
+        channel.appendLine(`${processed}/${tokenMap.size} tokens processed...`);
+    });
+    for (const [token, ids] of tokenMap) {
+        await tokenWriter.add({ type: 'put', key: `token:${token}`, value: ids });
+    }
+    await tokenWriter.flush();
+    
     channel.appendLine('All structure types and functions are indexed...');
 }
 
@@ -119,60 +119,6 @@ async function parseToTagsFile(root, channel, exeCmds) {
     await runGlobal(root, channel, exeCmds.global);
 }
 
-async function assignIdsToVariables(channel) {
-    const db = getDB();
-    channel.appendLine('Creating Tags DataBase...');
-
-    let totalTags = 0;
-    const buckets = [];
-    for await (const key of db.keys({ gte: 'tag:', lt: 'tag;' })) {
-        const tag = key.slice(4);
-        const len = tag.length;
-        if (!buckets[len]) buckets[len] = [];
-        buckets[len].push(tag);
-        totalTags++;
-    }
-
-    const idWriter = new BatchWriter(200000, (processed) => {
-        channel.appendLine(`${processed}/${totalTags} IDs assigned...`);
-    });
-    let ind = 0;
-    const tokenMap = new Map();
-
-    for (let b = 0; b < buckets.length; b++) {
-        const bucket = buckets[b];
-        if (!bucket) continue;
-
-        for (let i = 0; i < bucket.length; i++) {
-            const varname = bucket[i];
-            const varid = ind + 1;
-            await idWriter.add({ type: 'put', key: `id:${varid}`, value: varname });
-            const tokens = new Set(tokenize(varname));
-            for (const token of tokens) {
-                let ids = tokenMap.get(token);
-                if (!ids) {
-                    ids = [];
-                    tokenMap.set(token, ids);
-                }
-                ids.push(varid);
-            }
-            ind++;
-        }
-    }
-    await idWriter.flush();
-
-    const tokenWriter = new BatchWriter(50000, (processed) => {
-        channel.appendLine(`${processed}/${tokenMap.size} tokens processed...`);
-    });
-    for (const [token, ids] of tokenMap) {
-        await tokenWriter.add({ type: 'put', key: `token:${token}`, value: ids });
-    }
-    await tokenWriter.flush();
-
-    await db.close();
-    await db.open();
-}
-
 
 async function parseAndStoreTags(channel, root, exeCmds) {
     channel.show();
@@ -181,7 +127,6 @@ async function parseAndStoreTags(channel, root, exeCmds) {
     await cleanDB();
     await openDB();
     await parseToTagsFile(root, channel, exeCmds);
-    await assignIdsToVariables(channel);
     channel.appendLine('Post processing symbols...');
     channel.appendLine('Tags DataBase created successfully...');
     elapsedTime(start, performance.now(), channel);

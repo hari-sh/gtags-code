@@ -10,13 +10,13 @@
 <script src="treeview.js"></script>
 <style>
   :root {
-    --bg: #1e1e1e;
-    --panel: #252526;
-    --panel-hover: #2a2d2e;
-    --border: #3a3a3a;
-    --text: #cccccc;
-    --muted: #858585;
-    --accent: #007acc;
+    --bg: var(--vscode-panel-background, var(--vscode-editor-background, #1e1e1e));
+    --panel: var(--vscode-sideBar-background, #252526);
+    --panel-hover: var(--vscode-list-hoverBackground, #2a2d2e);
+    --border: var(--vscode-panel-border, #3a3a3a);
+    --text: var(--vscode-editor-foreground, #cccccc);
+    --muted: var(--vscode-descriptionForeground, #858585);
+    --accent: var(--vscode-button-background, #007acc);
   }
 
   * { box-sizing: border-box; }
@@ -47,7 +47,7 @@
     flex-direction: column;
     align-items: center;
     background: var(--panel);
-    border-right: 1px solid #2b2b2b;
+    border-right: 1px solid var(--border);
     padding: 4px 0;
   }
 
@@ -87,7 +87,7 @@
     color: var(--muted);
     cursor: pointer;
     user-select: none;
-    border-bottom: 1px solid #292929;
+    border-bottom: 1px solid var(--border);
     transition: background 0.12s, color 0.12s;
   }
 
@@ -97,8 +97,8 @@
   }
 
   .tab.active {
-    color: #ffffff;
-    background: #303031;
+    color: var(--vscode-list-activeSelectionForeground, #ffffff);
+    background: var(--vscode-list-activeSelectionBackground, #303031);
   }
 
   .tab.active::before {
@@ -144,8 +144,8 @@
   }
 
   .close-tab:hover {
-    background: #444444;
-    color: #ffffff;
+    background: var(--vscode-button-secondaryHoverBackground, #444444);
+    color: var(--vscode-button-secondaryForeground, #ffffff);
   }
 
   /* Workspace area */
@@ -157,20 +157,6 @@
     flex-direction: column;
   }
 
-  .toolbar {
-    height: 36px;
-    min-height: 36px;
-    display: flex;
-    align-items: center;
-    padding: 0 14px;
-    border-bottom: 1px solid #2b2b2b;
-    background: var(--panel);
-    font-size: 12px;
-  }
-
-  .plot-title {
-    font-weight: 500;
-  }
 
   .tab-container {
     position: relative;
@@ -198,9 +184,7 @@
   </aside>
 
   <main class="workspace">
-    <div class="toolbar">
-      <span id="plotTitle" class="plot-title"></span>
-    </div>
+
     <div id="plotContainer" class="tab-container"></div>
   </main>
 </div>
@@ -214,7 +198,7 @@ let activeId = null;
 const sidebarEl = document.getElementById("sidebar");
 const sidebarResizerEl = document.getElementById("sidebarResizer");
 const tabsEl = document.getElementById("tabs");
-const plotTitleEl = document.getElementById("plotTitle");
+
 const plotContainerEl = document.getElementById("plotContainer");
 
 const pending = new Map();
@@ -310,7 +294,6 @@ function closeItem(id) {
 
   if (items.length === 0) {
     activeId = null;
-    plotTitleEl.textContent = "";
     plotContainerEl.innerHTML = "<div class='empty-state'>Select a symbol to view callers</div>";
     renderTabs();
     return;
@@ -361,15 +344,12 @@ function renderContent() {
   const activeItem = items.find(p => p.id === activeId);
   
   if (!activeItem) {
-    plotTitleEl.textContent = "";
     document.querySelectorAll('.empty-state').forEach(el => el.style.display = 'flex');
     return;
   }
 
   const emptyStateEl = plotContainerEl.querySelector('.empty-state');
   if (emptyStateEl) emptyStateEl.style.display = 'none';
-  
-  plotTitleEl.textContent = activeItem.name;
 
   for (const item of items) {
     if (item.container) {
