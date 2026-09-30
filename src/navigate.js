@@ -1,13 +1,8 @@
-const { getValueFromDb, getDB, batchWriteIntoDB, searchQuery } = require('./database');
-let vscode;
-try {
-    vscode = require('vscode');
-} catch (_) {
-    vscode = null;
-}
-const fs = require('fs');
+const vscode = require('vscode');
 const path = require('path');
 const os = require('os');
+const fs = require('fs');
+const { searchQuery } = require('./database');
 
 async function getlno(entry) {
     if (entry && entry.line) {
@@ -44,23 +39,21 @@ function getTag(editor) {
     return tag;
 }
 
-async function queryTagDefinitions(workspaceFolder, key, provider) {
-    return await provider.queryDefinitions(workspaceFolder, key);
-}
-
 async function jumputil(editor, context, key, provider) {
     if (!key) return;
 
-    const workspaceFolder = vscode?.workspace?.workspaceFolders?.[0]?.uri?.fsPath || process.cwd();
-
-    const matches = await queryTagDefinitions(workspaceFolder, key, provider);
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath || process.cwd();
+    const matches = [];
+    for await (const match of provider.queryDefinitions(workspaceFolder, key)) {
+        matches.push(match);
+    }
 
     if (!matches || matches.length === 0) {
-        return vscode?.window?.showInformationMessage(`gtags-code: No tags found for ${key}`);
+        return vscode.window.showInformationMessage(`gtags-code: No tags found for ${key}`);
     }
 
     const options = matches.map(tag => {
-        const relPath = vscode?.workspace?.workspaceFolders?.[0]
+        const relPath = vscode.workspace.workspaceFolders?.[0]
             ? path.relative(vscode.workspace.workspaceFolders[0].uri.fsPath, tag.file)
             : tag.file;
 
@@ -91,7 +84,6 @@ async function handleSearchTagsCommand(context, provider) {
     quickPick.placeholder = 'Search tags...';
     quickPick.matchOnDescription = true;
     quickPick.filterItems = false;
-    quickPick.matchOnDescription = false;
     quickPick.matchOnDetail = false;
 
     let abortController = null;
@@ -146,7 +138,6 @@ async function jump2tag(context, editor, provider) {
 }
 
 function getOrCreateTerminal(name) {
-    if (!vscode) return null;
     const existing = vscode.window.terminals.find(t => t.name === name || t.name.startsWith('GTags References'));
     if (existing) {
         return existing;
@@ -207,37 +198,27 @@ function displayMatchesInTerminal(symbol, matches, targetToHighlight) {
     }
 }
 
-async function queryReferences(workspaceFolder, symbol, provider) {
-    return await provider.queryReferences(workspaceFolder, symbol);
-}
-
-async function querySymbolReferences(workspaceFolder, symbol, provider) {
-    return queryReferences(workspaceFolder, symbol, provider);
-}
-
 async function getReferencesInternal(context, editor, provider, symbolOverride) {
     const symbol = symbolOverride || getTag(editor);
     if (!symbol || !symbol.trim()) {
-        if (vscode) vscode.window.showErrorMessage('No tag/symbol selected');
+        vscode.window.showErrorMessage('No tag/symbol selected');
         return;
     }
 
-    const workspaceFolder = vscode?.workspace?.workspaceFolders?.[0]?.uri?.fsPath || process.cwd();
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath || process.cwd();
 
-    const { matches, target } = await queryReferences(workspaceFolder, symbol, provider);
+    const target = symbol.trim();
+    const matches = [];
+    for await (const match of provider.queryReferences(workspaceFolder, symbol)) {
+        matches.push(match);
+    }
     displayMatchesInTerminal(symbol, matches, target);
-}
-
-async function getSymbolReferencesInternal(context, editor, symbol, provider) {
-    return getReferencesInternal(context, editor, provider, symbol);
 }
 
 module.exports = {
     jump2tag,
     getReferencesInternal,
-    getSymbolReferencesInternal,
     handleSearchTagsCommand,
-    queryReferences,
-    querySymbolReferences,
-    queryTagDefinitions
+    getTag,
+    revealInCode
 };

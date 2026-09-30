@@ -43,9 +43,9 @@ function getDB() {
   return db;
 }
 
-function closeDB() {
-  if (!db) throw new Error('DB is not initialized.');
-  db.close();
+async function closeDB() {
+  if (!db) return;
+  await db.close();
 }
 
 async function openDB() {

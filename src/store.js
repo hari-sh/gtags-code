@@ -1,7 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { cleanDB, openDB } = require('./database');
-const { tokenize, elapsedTime } = require('./utils');
+const { tokenize, elapsedTime, cleanWorkspace } = require('./utils');
 const BatchWriter = require('./batchWriter');
 const exts = new Set(['.c', '.cpp', '.h', '.hpp', '.cc', '.hh', '.cxx', '.hxx']);
 
@@ -23,7 +23,9 @@ async function parseToTagsFile(root, channel, provider) {
     const files = await getSourceFiles(root, root);
     channel.appendLine(`Found ${files.length} source files(s) to index...`);
     
-    await provider.generateTags(root, files, channel);
+    for await (const message of provider.generateTags(root, files)) {
+        channel.appendLine(message);
+    }
     
     channel.appendLine('Indexing structure types and functions...');
     const idWriter = new BatchWriter(200000, (processed) => {
@@ -33,7 +35,7 @@ async function parseToTagsFile(root, channel, provider) {
     let ind = 0;
     const tokenMap = new Map();
 
-    await provider.streamSymbols(root, channel, async (tagName) => {
+    for await (const tagName of provider.streamSymbols(root)) {
         try {
             const varid = ind + 1;
             await idWriter.add({ type: 'put', key: `id:${varid}`, value: tagName });
@@ -50,7 +52,7 @@ async function parseToTagsFile(root, channel, provider) {
         } catch (err) {
             console.error("Error while processing line:", err);
         }
-    });
+    }
 
     await idWriter.flush();
     
@@ -70,7 +72,8 @@ async function parseToTagsFile(root, channel, provider) {
 async function parseAndStoreTags(channel, root, provider) {
     channel.show();
     const start = performance.now();
-    await provider.cleanWorkspace(root, channel);
+    if (provider.clearCaches) await provider.clearCaches();
+    await cleanWorkspace(root, provider.workspaceFilesToRemove, channel);
     await cleanDB();
     await openDB();
     await parseToTagsFile(root, channel, provider);

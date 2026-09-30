@@ -219,6 +219,8 @@ window.addEventListener('message', event => {
   }
 });
 
+vscode.postMessage({ type: 'webviewReady' });
+
 function getTags(tagName) {
   return new Promise(resolve => {
     const id = Math.random().toString(36);

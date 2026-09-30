@@ -108,7 +108,7 @@
     "node-gyp-build": "^4.8.4"
   },
   "devDependencies": {
-    "@vscode/vsce": "^3.7.1",
-    "esbuild": "^0.25.5"
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2"
   }
 }

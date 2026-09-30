@@ -114,7 +114,7 @@ This opens a graphical panel displaying the call graph using D3.js, showing all 
 | `Gtags: Store Tags` | Parses `tags` file and creates `tagsdb` (LevelDB) |
 | `Gtags: Jump to Tag` | Jump to the selected tag definition |
 | `Gtags: Search Tag` | Search symbols interactively via Quick Pick |
-| `Gtags: Get References` | Get all references for symbols, functions, and member expressions (`obj->field`, `obj.field`) |
+| `Gtags: Get References` | Find ordinary references to the selected symbol |
 | `Gtags: Get Function Callers` | Display function callers in a graphical call graph |
 
 ## Implementation Details
