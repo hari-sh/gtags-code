@@ -1,6 +1,4 @@
 const vscode = require('vscode');
-const path = require('path');
-const fs = require('fs').promises;
 const { jump2tag, getReferencesInternal, handleSearchTagsCommand } = require('./query');
 const { initDB, closeDB } = require('./database');
 const { parseAndStoreTags } = require('./store');
@@ -46,9 +44,32 @@ async function getReferences(context) {
 async function getCallers(context, provider) {
   const editor = vscode.window.activeTextEditor;
   const gtagSymbol = getTag(editor);
+  if (!gtagSymbol || !gtagSymbol.trim()) {
+    vscode.window.showErrorMessage('No tag/symbol selected');
+    return;
+  }
+
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+  if (!workspaceFolder) {
+    vscode.window.showErrorMessage('No workspace folder open');
+    return;
+  }
+
+  if (typeof tagsProvider.isFunctionSymbol === 'function') {
+    const isFunction = await tagsProvider.isFunctionSymbol(
+      workspaceFolder.uri.fsPath,
+      gtagSymbol.trim()
+    );
+
+    if (!isFunction) {
+      vscode.window.showErrorMessage(`${gtagSymbol.trim()} is not a function`);
+      return;
+    }
+  }
+
   await vscode.commands.executeCommand('gtags.panelView.focus');
   if (provider) {
-    provider.addTab(gtagSymbol || 'gtags-code');
+    provider.addTab(gtagSymbol.trim());
   }
 }
 
@@ -77,7 +98,8 @@ module.exports = {
       })
     );
   },
-  deactivate() {
-    closeDB();
+  async deactivate() {
+    tagsProvider.clearCaches?.();
+    await closeDB();
   }
 };

@@ -1,6 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { cleanDB, openDB } = require('./database');
+const { clearCallGraphCache } = require('./callers');
 const { tokenize, elapsedTime } = require('./utils');
 const BatchWriter = require('./batchWriter');
 const exts = new Set(['.c', '.cpp', '.h', '.hpp', '.cc', '.hh', '.cxx', '.hxx']);
@@ -70,6 +71,8 @@ async function parseToTagsFile(root, channel, provider) {
 async function parseAndStoreTags(channel, root, provider) {
     channel.show();
     const start = performance.now();
+    provider.clearCaches?.();
+    clearCallGraphCache();
     await provider.cleanWorkspace(root, channel);
     await cleanDB();
     await openDB();

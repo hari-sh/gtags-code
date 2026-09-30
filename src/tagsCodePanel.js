@@ -36,7 +36,11 @@ class TagsCodeViewProvider {
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       if (msg.type === 'getTags') {
         const { getTagsRef } = require('./callers');
-        const data = await getTagsRef(msg.tagName, this.tagsProvider);
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        const isFunction = !!workspaceFolder &&
+          typeof this.tagsProvider.isFunctionSymbol === 'function' &&
+          await this.tagsProvider.isFunctionSymbol(workspaceFolder.uri.fsPath, msg.tagName);
+        const data = isFunction ? await getTagsRef(msg.tagName, this.tagsProvider) : [];
         webviewView.webview.postMessage({
           type: 'getTags:response',
           id: msg.id,

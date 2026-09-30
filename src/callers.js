@@ -1,26 +1,19 @@
 
 
 const vscode = require("vscode");
-
-const fileFunctionCache = new Map();
-/* ------------------ cache ------------------ */
+const callGraphCache = new Map();
 
 /* ------------------ core logic ------------------ */
 
 async function getFunctionsInFile(file, cwd, tagsProvider) {
-  if (fileFunctionCache.has(file)) {
-    return await fileFunctionCache.get(file);
-  }
-
-  const funcsPromise = tagsProvider.getFunctionsInFile(cwd, file);
-  fileFunctionCache.set(file, funcsPromise);
-
-  return await funcsPromise;
+  return tagsProvider.getFunctionsInFile(cwd, file);
 }
 
 async function getEnclosingFunction(file, line, cwd, tagsProvider) {
   const funcs = await getFunctionsInFile(file, cwd, tagsProvider);
-  return funcs.filter(f => f.line <= line).at(-1) || null;
+  return funcs
+    .filter(func => func.startLine <= line && func.endLine >= line)
+    .sort((left, right) => (left.endLine - left.startLine) - (right.endLine - right.startLine))[0] || null;
 }
 
 const HEADERS_EXTENSIONS = [".h", ".hpp", ".hh", ".hxx"];
@@ -95,6 +88,7 @@ async function postFileInfo(tagData)  {
 /* ------------------ markutil.js ------------------ */
 
 function getTag(editor) {
+  if (!editor) return '';
     const tag = editor.document.getText(editor.selection).trim()
     if (!tag) {
         const range = editor.document.getWordRangeAtPosition(editor.selection.active);
@@ -108,13 +102,28 @@ function getTag(editor) {
 async function getTagsRef(tagName, tagsProvider) {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) return [];
-  
-  return await getEnclosingInfoArray(tagName, workspaceFolder.uri.fsPath, tagsProvider);
+
+  const cacheKey = `${workspaceFolder.uri.fsPath}:${tagName}`;
+  if (callGraphCache.has(cacheKey)) return callGraphCache.get(cacheKey);
+
+  const callersPromise = getEnclosingInfoArray(tagName, workspaceFolder.uri.fsPath, tagsProvider);
+  callGraphCache.set(cacheKey, callersPromise);
+  try {
+    return await callersPromise;
+  } catch (error) {
+    callGraphCache.delete(cacheKey);
+    throw error;
+  }
+}
+
+function clearCallGraphCache() {
+  callGraphCache.clear();
 }
 
 
 module.exports = {
   getTag,
   getTagsRef,
-  postFileInfo
+  postFileInfo,
+  clearCallGraphCache
 };
