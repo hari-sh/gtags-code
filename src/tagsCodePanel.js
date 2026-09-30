@@ -7,6 +7,8 @@ class TagsCodeViewProvider {
     this.context = context;
     this.tagsProvider = tagsProvider;
     this.webviewView = null;
+    this.isReady = false;
+    this.pendingTabs = [];
   }
 
   resolveWebviewView(webviewView, context, token) {
@@ -35,26 +37,35 @@ class TagsCodeViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       if (msg.type === 'getTags') {
-        const { getTagsRef } = require('./callers');
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         const isFunction = !!workspaceFolder &&
           typeof this.tagsProvider.isFunctionSymbol === 'function' &&
           await this.tagsProvider.isFunctionSymbol(workspaceFolder.uri.fsPath, msg.tagName);
-        const data = isFunction ? await getTagsRef(msg.tagName, this.tagsProvider) : [];
+        const data = isFunction ? await this.tagsProvider.getCallers(workspaceFolder.uri.fsPath, msg.tagName) : [];
         webviewView.webview.postMessage({
           type: 'getTags:response',
           id: msg.id,
           data
         });
+      } else if (msg.type === 'webviewReady') {
+        this.isReady = true;
+        for (const symbol of this.pendingTabs) {
+          this.webviewView.webview.postMessage({ type: 'addTab', symbol });
+        }
+        this.pendingTabs = [];
       } else if (msg.type === 'postFileInfo') {
-        const { postFileInfo } = require('./callers');
-        await postFileInfo(msg.data);
+        const { revealInCode } = require('./navigate');
+        await revealInCode(this.context, vscode.window.activeTextEditor, msg.data);
       }
     });
   }
   
   addTab(symbol) {
-    if (this.webviewView) {
+    if (!this.webviewView) {
+      this.pendingTabs.push(symbol);
+    } else if (!this.isReady) {
+      this.pendingTabs.push(symbol);
+    } else {
       this.webviewView.webview.postMessage({ type: 'addTab', symbol });
     }
   }

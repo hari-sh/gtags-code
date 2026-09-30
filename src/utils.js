@@ -1,3 +1,8 @@
+const { spawn } = require('child_process');
+const fs = require('fs').promises;
+const fssync = require('fs');
+const path = require('path');
+
 function elapsedTime(start, end, channel) {
     const sec = ((end - start) / 1000).toFixed(3);
     if (sec < 60) {
@@ -23,7 +28,37 @@ const tokenize = (name) => {
     .filter(Boolean);
 };
 
+async function checkDependencies(cmds) {
+    const getVersionAsync = (cmd) => new Promise((resolve, reject) => {
+        const child = spawn(cmd, ["--version"], { shell: true });
+        let output = "";
+        child.stdout.on("data", d => output += d);
+        child.stderr.on("data", d => output += d);
+        child.on("error", () => reject(new Error(`Please install ${cmd} or provide its path in settings.`)));
+        child.on("close", (code) => {
+            if (code === 0 || code === 1) resolve(output.trim());
+            else reject(new Error(`Please install ${cmd} or provide its path in settings.`));
+        });
+    });
+    
+    for (const cmd of cmds || []) {
+        await getVersionAsync(cmd);
+    }
+}
+
+async function cleanWorkspace(workspaceRoot, files, channel) {
+    if (channel && files && files.length > 0) channel.appendLine('Cleaning existing Tags DataBase...');
+    for (const file of files || []) {
+        const filePath = path.join(workspaceRoot, file);
+        if (fssync.existsSync(filePath)) {
+            await fs.rm(filePath, { force: true });
+        }
+    }
+}
+
 module.exports = {
     elapsedTime,
-    tokenize
+    tokenize,
+    checkDependencies,
+    cleanWorkspace
 };

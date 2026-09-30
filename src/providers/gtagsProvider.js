@@ -3,6 +3,7 @@ const readline = require('readline');
 const path = require('path');
 const fssync = require('fs');
 const fs = require('fs').promises;
+const HEADER_EXTENSIONS = ['.h', '.hpp', '.hh', '.hxx'];
 
 class GtagsProvider {
     constructor(gtagsCmd = 'gtags', globalCmd = 'global') {
@@ -17,34 +18,31 @@ class GtagsProvider {
         this.callGraphCache.clear();
     }
 
-    async generateTags(workspaceRoot, files, channel) {
-        channel.appendLine('Running Gtags...');
-        const p = spawn(this.gtagsCmd, ['-v', '-f', '-'], { cwd: workspaceRoot });
+    get dependencies() {
+        return [this.globalCmd, this.gtagsCmd];
+    }
 
-        let processed = 0;
-        const rl = readline.createInterface({
-            input: p.stderr,
-            crlfDelay: Infinity
-        });
-        rl.on('line', (line) => {
-            if (!line.trim()) {
-                return;
-            }
-            processed++;
-            if (processed % 500 === 0) {
-                channel.appendLine(`${processed}/${files.length} files processed by gtags...`);
-            }
-            if (processed === files.length) {
-                channel.appendLine(`${processed}/${files.length} files processed by gtags...`);
-            }
-        });
+    async *generateTags(workspaceRoot, files) {
+        yield 'Running Gtags...';
+        const p = spawn(this.gtagsCmd, ['-v', '-f', '-'], { cwd: workspaceRoot });
 
         for (const f of files) {
             p.stdin.write(f + '\n');
         }
         p.stdin.end();
 
-        return new Promise((resolve, reject) => {
+        let processed = 0;
+        const rl = readline.createInterface({
+            input: p.stderr,
+            crlfDelay: Infinity
+        });
+
+        for await (const line of rl) {
+            if (line.trim() && (++processed % 500 === 0 || processed === files.length)) {
+                yield `${processed}/${files.length} files processed by gtags...`;
+            }
+        }
+        await new Promise((resolve, reject) => {
             p.on('close', (code) => {
                 if (code === 0) {
                     resolve();
@@ -55,8 +53,44 @@ class GtagsProvider {
         });
     }
 
-    async streamSymbols(workspaceRoot, channel, onSymbol) {
-        channel.appendLine('Indexing structure types and functions...');
+    async *runGlobal(args, options = {}) {
+        const { cwd, reflectionError = true } = options;
+        const p = spawn(this.globalCmd, args, { cwd });
+        const rl = readline.createInterface({ input: p.stdout, crlfDelay: Infinity });
+        let err = "";
+
+        p.stderr.on("data", d => (err += d.toString()));
+
+        const closePromise = new Promise((resolve, reject) => {
+            p.on("error", error => {
+                if (reflectionError) reject(error);
+                else resolve();
+            });
+            p.on("close", code => {
+                if (code !== 0 && reflectionError) reject(new Error(err || `global ${args.join(" ")} failed`));
+                else resolve();
+            });
+        });
+
+        try {
+            for await (const line of rl) {
+                const parts = line.trim().split(/\s+/);
+                if (parts.length >= 4) {
+                    yield {
+                        symbol: parts[0],
+                        line: Number(parts[1]),
+                        file: parts[2],
+                        source: parts.slice(3).join(" ")
+                    };
+                }
+            }
+            await closePromise;
+        } finally {
+            p.kill();
+        }
+    }
+
+    async *streamSymbols(workspaceRoot) {
         const child = spawn(this.globalCmd, ['-c'], { cwd: workspaceRoot });
         const rl = readline.createInterface({
             input: child.stdout,
@@ -66,132 +100,57 @@ class GtagsProvider {
         for await (const line of rl) {
             const tagName = line.trim();
             if (tagName) {
-                await onSymbol(tagName);
+                yield tagName;
             }
         }
     }
 
-    async queryDefinitions(workspaceRoot, key) {
-        if (!key || !key.trim()) return [];
+    async *queryDefinitions(workspaceRoot, key) {
+        if (!key || !key.trim()) return;
 
-        const streamGlobal = (args) => new Promise((resolve) => {
-            const results = [];
-            const proc = spawn(this.globalCmd, args, { cwd: workspaceRoot });
-            const rl = readline.createInterface({
-                input: proc.stdout,
-                crlfDelay: Infinity
-            });
+        for await (const tag of this.runGlobal(['-xd', key.trim()], {
+            cwd: workspaceRoot,
+            reflectionError: false
+        })) {
+            if (!tag.file || !Number.isFinite(tag.line)) continue;
 
-            rl.on('line', (line) => {
-                const trimmed = line.trim();
-                if (!trimmed) return;
-
-                const parts = trimmed.split(/\s+/);
-                if (parts.length >= 3) {
-                    const tagName = parts[0];
-                    const lineNo = parseInt(parts[1], 10);
-                    const file = parts[2];
-                    const code = parts.slice(3).join(' ');
-
-                    if (file && !isNaN(lineNo)) {
-                        const fullPath = path.isAbsolute(file) ? file : path.join(workspaceRoot, file);
-                        results.push({
-                            tagName,
-                            file: fullPath,
-                            line: lineNo,
-                            code
-                        });
-                    }
-                }
-            });
-
-            proc.on('close', () => resolve(results));
-            proc.on('error', (err) => {
-                console.error(`gtags-code: Error spawning ${this.globalCmd}:`, err);
-                resolve([]);
-            });
-        });
-
-        let matches = await streamGlobal(['-xd', key.trim()]);
-        if (matches.length === 0) {
-            matches = await streamGlobal(['-x', key.trim()]);
+            const fullPath = path.isAbsolute(tag.file) ? tag.file : path.join(workspaceRoot, tag.file);
+            yield {
+                tagName: tag.symbol,
+                file: fullPath,
+                line: tag.line,
+                code: tag.source
+            };
         }
-        return matches;
     }
 
-    async queryReferences(workspaceRoot, symbol) {
-        if (!symbol || !symbol.trim()) return { matches: [], target: '' };
+    async *queryReferences(workspaceRoot, symbol) {
+        if (!symbol || !symbol.trim()) return;
 
-        symbol = symbol.trim();
-        const match = symbol.match(/((?:->|\.)(\w+))$/);
-        let lastProperty, precedingPartWithDelimiter;
-        if (match) {
-            lastProperty = match[2];
-            precedingPartWithDelimiter = symbol.substring(0, symbol.length - lastProperty.length);
-        } else if (/^\w+$/.test(symbol)) {
-            lastProperty = symbol;
-            precedingPartWithDelimiter = '';
-        } else {
-            lastProperty = symbol;
-            precedingPartWithDelimiter = '';
-        }
-
-        const target = precedingPartWithDelimiter ? (precedingPartWithDelimiter + lastProperty) : lastProperty;
+        const target = symbol.trim();
         const seenLines = new Set();
-        const results = [];
 
-        const handleLine = (line) => {
-            const trimmed = line.trim();
-            if (!trimmed || seenLines.has(trimmed)) return;
-            seenLines.add(trimmed);
+        for await (const tag of this.runGlobal(['-rx', target], {
+            cwd: workspaceRoot,
+            reflectionError: false
+        })) {
+            const uniqueKey = `${tag.file}:${tag.line}:${tag.source}`;
+            if (seenLines.has(uniqueKey)) continue;
+            seenLines.add(uniqueKey);
 
-            if (precedingPartWithDelimiter && !trimmed.includes(precedingPartWithDelimiter)) {
-                return;
-            }
-
-            const m = trimmed.match(/^([^:]+):(\d+):(.*)$/);
-            if (m) {
-                const [, file, lineNo, code] = m;
-                const fullPath = path.isAbsolute(file) ? file : path.join(workspaceRoot, file);
-                results.push({
+            if (tag.file && Number.isFinite(tag.line)) {
+                const fullPath = path.isAbsolute(tag.file) ? tag.file : path.join(workspaceRoot, tag.file);
+                yield {
                     file: fullPath,
-                    line: parseInt(lineNo, 10),
-                    code: code.trim()
-                });
-            }
-        };
-
-        const streamGlobal = (args) => new Promise((resolve) => {
-            const proc = spawn(this.globalCmd, args, { cwd: workspaceRoot });
-            const rl = readline.createInterface({
-                input: proc.stdout,
-                crlfDelay: Infinity
-            });
-            rl.on('line', handleLine);
-            proc.on('close', () => resolve());
-            proc.on('error', (err) => {
-                console.error(`gtags-code: Error spawning ${this.globalCmd}:`, err);
-                resolve();
-            });
-        });
-
-        await Promise.all([
-            streamGlobal(['--result=grep', '-xs', lastProperty]),
-            streamGlobal(['--result=grep', '-r', lastProperty])
-        ]);
-
-        return { matches: results, target };
-    }
-
-    async cleanWorkspace(workspaceRoot, channel) {
-        channel.appendLine('Cleaning existing Tags DataBase...');
-        const gtagsFiles = ['GTAGS', 'GRTAGS', 'GPATH'];
-        for (const file of gtagsFiles) {
-            const filePath = path.join(workspaceRoot, file);
-            if (fssync.existsSync(filePath)) {
-                await fs.rm(filePath, { force: true });
+                    line: tag.line,
+                    code: tag.source
+                };
             }
         }
+    }
+
+    get workspaceFilesToRemove() {
+        return ['GTAGS', 'GRTAGS', 'GPATH'];
     }
 
     async getFunctionsInFile(workspaceRoot, file) {
@@ -202,13 +161,11 @@ class GtagsProvider {
         }
 
         const functionsPromise = (async () => {
-            const tags = await this.runGlobal(['-xf', tagPath], {
+            const functions = [];
+            for await (const tag of this.runGlobal(['-xf', tagPath], {
                 cwd: workspaceRoot,
                 reflectionError: false
-            });
-            const functions = [];
-
-            for (const tag of tags) {
+            })) {
                 if (!this._isFunctionTag(tag)) continue;
                 const range = this.findFunctionRange(workspaceRoot, tag.file, tag.line);
                 if (range) functions.push({ ...tag, ...range });
@@ -232,7 +189,8 @@ class GtagsProvider {
             return this.callGraphCache.get(cacheKey);
         }
 
-        const callersPromise = this.isCallableReference(workspaceRoot, symbol);
+        const callersPromise = this._getCallersUncached(workspaceRoot, symbol);
+
         this.callGraphCache.set(cacheKey, callersPromise);
         try {
             return await callersPromise;
@@ -242,24 +200,66 @@ class GtagsProvider {
         }
     }
 
+    async _getCallersUncached(workspaceRoot, symbol) {
+        const callers = await this.isCallableReference(workspaceRoot, symbol);
+        const sourceCallers = callers.filter(caller =>
+            !HEADER_EXTENSIONS.some(extension => caller.file.endsWith(extension))
+        );
+        const enclosingFunctions = await Promise.all(
+            sourceCallers.map(caller => this._getEnclosingCaller(workspaceRoot, caller))
+        );
+
+        return this._filterUniqueCallers(enclosingFunctions.filter(Boolean), symbol);
+    }
+
+    async _getEnclosingCaller(workspaceRoot, caller) {
+        const functions = await this.getFunctionsInFile(workspaceRoot, caller.file);
+        const enclosing = functions
+            .filter(func => func.startLine <= caller.line && func.endLine >= caller.line)
+            .sort((left, right) =>
+                (left.endLine - left.startLine) - (right.endLine - right.startLine)
+            )[0];
+
+        return enclosing
+            ? { name: enclosing.symbol, file: caller.file, line: enclosing.line }
+            : null;
+    }
+
+    _filterUniqueCallers(callers, symbol) {
+        const withoutSelf = callers.filter(caller => caller.name !== symbol);
+        const nameCounts = new Map();
+
+        for (const caller of withoutSelf) {
+            nameCounts.set(caller.name, (nameCounts.get(caller.name) || 0) + 1);
+        }
+
+        return withoutSelf.filter(caller => nameCounts.get(caller.name) === 1);
+    }
+
     async isCallableReference(workspaceRoot, symbol) {
-        const callers = await this.runGlobal(['-rx', symbol], {
-            cwd: workspaceRoot,
-            reflectionError: false
-        });
         const escapedSymbol = this.escapeRegExp(symbol);
         const callRegex = new RegExp(`(?:^|[^\\w~])${escapedSymbol}\\s*\\(`);
-        return callers.filter(tag => callRegex.test(tag.source || ''));
+        const callers = [];
+        
+        for await (const tag of this.runGlobal(['-rx', symbol], {
+            cwd: workspaceRoot,
+            reflectionError: false
+        })) {
+            if (callRegex.test(tag.source || '')) {
+                callers.push(tag);
+            }
+        }
+        
+        return callers;
     }
 
     async isFunctionSymbol(workspaceRoot, symbol) {
         if (!symbol || !symbol.trim()) return false;
-        const tags = await this.runGlobal(['-x', symbol.trim()], {
+
+        for await (const tag of this.runGlobal(['-x', symbol.trim()], {
             cwd: workspaceRoot,
             reflectionError: false
-        });
-
-        for (const tag of tags) {
+        })) {
             if (!this._isFunctionTag(tag)) continue;
             const functions = await this.getFunctionsInFile(workspaceRoot, tag.file);
             if (functions.some(func => func.symbol === symbol.trim())) return true;
@@ -355,63 +355,7 @@ class GtagsProvider {
         return file;
     }
 
-    async runGlobal(args, options = {}) {
-        const { cwd, reflectionError = true } = options;
-        return new Promise((resolve, reject) => {
-            const p = spawn(this.globalCmd, args, { cwd });
-            let out = "";
-            let err = "";
 
-            p.stdout.on("data", d => (out += d.toString()));
-            p.stderr.on("data", d => (err += d.toString()));
-
-            p.on('error', error => {
-                if (reflectionError === false) {
-                    resolve([]);
-                } else {
-                    reject(error);
-                }
-            });
-
-            p.on("close", code => {
-                if (code !== 0) {
-                    if (reflectionError === false) {
-                        resolve([]);
-                        return;
-                    }
-                    reject(err || `global ${args.join(" ")} failed`);
-                    return;
-                }
-                const results = out.trim().split("\n").filter(Boolean).map(line => {
-                    const parts = line.trim().split(/\s+/);
-                    return {
-                        symbol: parts[0],
-                        line: Number(parts[1]),
-                        file: parts[2],
-                        source: parts.slice(3).join(" ")
-                    };
-                });
-                resolve(results);
-            });
-        });
-    }
-
-    async checkDependencies() {
-        const getVersionAsync = (cmd) => new Promise((resolve, reject) => {
-            const child = spawn(cmd, ["--version"], { shell: true });
-            let output = "";
-            child.stdout.on("data", d => output += d);
-            child.stderr.on("data", d => output += d);
-            child.on("error", () => reject(new Error(`Please install ${cmd} or provide its path in settings.`)));
-            child.on("close", (code) => {
-                if (code === 0 || code === 1) resolve(output.trim());
-                else reject(new Error(`Please install ${cmd} or provide its path in settings.`));
-            });
-        });
-        
-        await getVersionAsync(this.globalCmd);
-        await getVersionAsync(this.gtagsCmd);
-    }
 }
 
 module.exports = GtagsProvider;

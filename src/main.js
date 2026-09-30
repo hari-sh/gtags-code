@@ -1,10 +1,10 @@
 const vscode = require('vscode');
-const { jump2tag, getReferencesInternal, handleSearchTagsCommand } = require('./query');
+const { jump2tag, getReferencesInternal, handleSearchTagsCommand, getTag } = require('./navigate');
 const { initDB, closeDB } = require('./database');
 const { parseAndStoreTags } = require('./store');
-const { createPreview, getTag } = require('./callers');
 const { TagsCodeViewProvider } = require('./tagsCodePanel');
 const TagsProviderFactory = require('./providers/factory');
+const { checkDependencies } = require('./utils');
 
 const channel = vscode.window.createOutputChannel('gtags-code');
 const config = vscode.workspace.getConfiguration('gtags-code');
@@ -23,7 +23,7 @@ async function storeTags() {
     vscode.window.showErrorMessage('No workspace folder open');
     return;
   }
-  await tagsProvider.checkDependencies();
+  await checkDependencies(tagsProvider.dependencies);
   await parseAndStoreTags(channel, workspaceFolder.uri.fsPath, tagsProvider);
 }
 
