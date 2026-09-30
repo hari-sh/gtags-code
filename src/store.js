@@ -72,7 +72,7 @@ async function parseToTagsFile(root, channel, provider) {
 async function parseAndStoreTags(channel, root, provider) {
     channel.show();
     const start = performance.now();
-    provider.clearCaches?.();
+    if (provider.clearCaches) await provider.clearCaches();
     await cleanWorkspace(root, provider.workspaceFilesToRemove, channel);
     await cleanDB();
     await openDB();

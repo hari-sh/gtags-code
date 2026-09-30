@@ -55,18 +55,6 @@ async function getCallers(context, provider) {
     return;
   }
 
-  if (typeof tagsProvider.isFunctionSymbol === 'function') {
-    const isFunction = await tagsProvider.isFunctionSymbol(
-      workspaceFolder.uri.fsPath,
-      gtagSymbol.trim()
-    );
-
-    if (!isFunction) {
-      vscode.window.showErrorMessage(`${gtagSymbol.trim()} is not a function`);
-      return;
-    }
-  }
-
   await vscode.commands.executeCommand('gtags.panelView.focus');
   if (provider) {
     provider.addTab(gtagSymbol.trim());
@@ -99,7 +87,7 @@ module.exports = {
     );
   },
   async deactivate() {
-    tagsProvider.clearCaches?.();
+    if (tagsProvider.clearCaches) await tagsProvider.clearCaches();
     await closeDB();
   }
 };

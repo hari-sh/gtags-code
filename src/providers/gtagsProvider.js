@@ -13,7 +13,7 @@ class GtagsProvider {
         this.callGraphCache = new Map();
     }
 
-    clearCaches() {
+    async clearCaches() {
         this.functionCache.clear();
         this.callGraphCache.clear();
     }
@@ -53,7 +53,7 @@ class GtagsProvider {
         });
     }
 
-    async *runGlobal(args, options = {}) {
+    async *_runGlobal(args, options = {}) {
         const { cwd, reflectionError = true } = options;
         const p = spawn(this.globalCmd, args, { cwd });
         const rl = readline.createInterface({ input: p.stdout, crlfDelay: Infinity });
@@ -153,8 +153,8 @@ class GtagsProvider {
         return ['GTAGS', 'GRTAGS', 'GPATH'];
     }
 
-    async getFunctionsInFile(workspaceRoot, file) {
-        const tagPath = this.toWorkspacePath(workspaceRoot, file);
+    async _getFunctionsInFile(workspaceRoot, file) {
+        const tagPath = this._toWorkspacePath(workspaceRoot, file);
         const cacheKey = `${workspaceRoot}:${tagPath}`;
         if (this.functionCache.has(cacheKey)) {
             return this.functionCache.get(cacheKey);
@@ -162,12 +162,12 @@ class GtagsProvider {
 
         const functionsPromise = (async () => {
             const functions = [];
-            for await (const tag of this.runGlobal(['-xf', tagPath], {
+            for await (const tag of this._runGlobal(['-xf', tagPath], {
                 cwd: workspaceRoot,
                 reflectionError: false
             })) {
                 if (!this._isFunctionTag(tag)) continue;
-                const range = this.findFunctionRange(workspaceRoot, tag.file, tag.line);
+                const range = this._findFunctionRange(workspaceRoot, tag.file, tag.line);
                 if (range) functions.push({ ...tag, ...range });
             }
 
@@ -184,6 +184,10 @@ class GtagsProvider {
     }
 
     async getCallers(workspaceRoot, symbol) {
+        if (!await this._isFunctionSymbol(workspaceRoot, symbol)) {
+            throw new Error(`${symbol.trim()} is not a function`);
+        }
+
         const cacheKey = `${workspaceRoot}:${symbol}`;
         if (this.callGraphCache.has(cacheKey)) {
             return this.callGraphCache.get(cacheKey);
@@ -201,7 +205,7 @@ class GtagsProvider {
     }
 
     async _getCallersUncached(workspaceRoot, symbol) {
-        const callers = await this.isCallableReference(workspaceRoot, symbol);
+        const callers = await this._isCallableReference(workspaceRoot, symbol);
         const sourceCallers = callers.filter(caller =>
             !HEADER_EXTENSIONS.some(extension => caller.file.endsWith(extension))
         );
@@ -213,7 +217,7 @@ class GtagsProvider {
     }
 
     async _getEnclosingCaller(workspaceRoot, caller) {
-        const functions = await this.getFunctionsInFile(workspaceRoot, caller.file);
+        const functions = await this._getFunctionsInFile(workspaceRoot, caller.file);
         const enclosing = functions
             .filter(func => func.startLine <= caller.line && func.endLine >= caller.line)
             .sort((left, right) =>
@@ -236,12 +240,12 @@ class GtagsProvider {
         return withoutSelf.filter(caller => nameCounts.get(caller.name) === 1);
     }
 
-    async isCallableReference(workspaceRoot, symbol) {
-        const escapedSymbol = this.escapeRegExp(symbol);
+    async _isCallableReference(workspaceRoot, symbol) {
+        const escapedSymbol = this._escapeRegExp(symbol);
         const callRegex = new RegExp(`(?:^|[^\\w~])${escapedSymbol}\\s*\\(`);
         const callers = [];
         
-        for await (const tag of this.runGlobal(['-rx', symbol], {
+        for await (const tag of this._runGlobal(['-rx', symbol], {
             cwd: workspaceRoot,
             reflectionError: false
         })) {
@@ -253,15 +257,15 @@ class GtagsProvider {
         return callers;
     }
 
-    async isFunctionSymbol(workspaceRoot, symbol) {
+    async _isFunctionSymbol(workspaceRoot, symbol) {
         if (!symbol || !symbol.trim()) return false;
 
-        for await (const tag of this.runGlobal(['-x', symbol.trim()], {
+        for await (const tag of this._runGlobal(['-x', symbol.trim()], {
             cwd: workspaceRoot,
             reflectionError: false
         })) {
             if (!this._isFunctionTag(tag)) continue;
-            const functions = await this.getFunctionsInFile(workspaceRoot, tag.file);
+            const functions = await this._getFunctionsInFile(workspaceRoot, tag.file);
             if (functions.some(func => func.symbol === symbol.trim())) return true;
         }
 
@@ -274,10 +278,10 @@ class GtagsProvider {
         if (/^(?:#\s*define|typedef\b|using\b|class\b|struct\b|enum\b|namespace\b)/.test(source)) {
             return false;
         }
-        return new RegExp(`(?:^|[^\\w~])${this.escapeRegExp(tag.symbol)}\\s*\\(`).test(source);
+        return new RegExp(`(?:^|[^\\w~])${this._escapeRegExp(tag.symbol)}\\s*\\(`).test(source);
     }
 
-    findFunctionRange(workspaceRoot, file, line) {
+    _findFunctionRange(workspaceRoot, file, line) {
         const fullPath = path.isAbsolute(file) ? file : path.join(workspaceRoot, file);
         let lines;
         try {
@@ -289,7 +293,7 @@ class GtagsProvider {
         const startIndex = Math.max(0, Number(line) - 1);
         let signatureStartIndex = startIndex;
         while (signatureStartIndex > 0) {
-            const previous = this.stripLineComment(lines[signatureStartIndex - 1]).trim();
+            const previous = this._stripLineComment(lines[signatureStartIndex - 1]).trim();
             if (!previous || /[;{}]/.test(previous) || previous.startsWith('#')) break;
             signatureStartIndex--;
         }
@@ -298,7 +302,7 @@ class GtagsProvider {
         let bodyStartIndex = -1;
         const scanEnd = Math.min(lines.length, startIndex + 80);
         for (let index = signatureStartIndex; index < scanEnd; index++) {
-            signature += `${this.stripLineComment(lines[index])}\n`;
+            signature += `${this._stripLineComment(lines[index])}\n`;
             const semicolonIndex = signature.indexOf(';');
             const braceIndex = signature.indexOf('{');
             if (semicolonIndex !== -1 && (braceIndex === -1 || semicolonIndex < braceIndex)) {
@@ -314,7 +318,7 @@ class GtagsProvider {
         let depth = 0;
         let enteredBody = false;
         for (let index = bodyStartIndex; index < lines.length; index++) {
-            const code = this.stripLineComment(lines[index]);
+            const code = this._stripLineComment(lines[index]);
             for (const character of code) {
                 if (character === '{') {
                     depth++;
@@ -335,15 +339,15 @@ class GtagsProvider {
         return null;
     }
 
-    stripLineComment(line) {
+    _stripLineComment(line) {
         return String(line).replace(/\/\/.*$/, '');
     }
 
-    escapeRegExp(value) {
+    _escapeRegExp(value) {
         return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
-    toWorkspacePath(workspaceRoot, file) {
+    _toWorkspacePath(workspaceRoot, file) {
         if (!file) return file;
         if (path.isAbsolute(file)) {
             const relativePath = path.relative(workspaceRoot, file);
