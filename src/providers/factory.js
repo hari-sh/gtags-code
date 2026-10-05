@@ -1,18 +1,30 @@
 const GtagsProvider = require('./gtagsProvider');
+const ExternalProvider = require('./externalProvider');
 
 class TagsProviderFactory {
     static create(config) {
-        // Here we can read config.get('engine') in the future to return different providers.
-        // For now, we default to GtagsProvider.
         const engine = config.engine || 'gtags';
 
-        if (engine === 'gtags') {
-            const gtagsCmd = config.gtagsCmd || 'gtags';
-            const globalCmd = config.globalCmd || 'global';
-            return new GtagsProvider(gtagsCmd, globalCmd);
-        }
+        switch (engine) {
+            case 'external':
+                if (!config.externalCommand || config.externalCommand.length === 0) {
+                    throw new Error('Configure "gtags-code.externalCommand" before using the external engine.');
+                }
+                return new ExternalProvider({
+                    command: config.externalCommand,
+                    indexCommand: config.externalIndexCommand,
+                    timeout: config.externalTimeout
+                });
 
-        throw new Error(`Unknown tags engine: ${engine}`);
+            case 'gtags':
+                return new GtagsProvider(
+                    config.gtagsCmd || 'gtags', 
+                    config.globalCmd || 'global'
+                );
+
+            default:
+                throw new Error(`Unknown tags engine: ${engine}`);
+        }
     }
 }
 

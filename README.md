@@ -37,6 +37,20 @@ And keep these two properties
   "gtags-code.globalCmd": <path_to_global_executable>
 ```
 
+The navigation engine can be selected in workspace or user settings. The default is `gtags`.
+
+### External Engine
+
+`gtags-code` can use a generic stdin/stdout JSON-RPC executable. This is configured via:
+```json
+{
+  "gtags-code.engine": "external",
+  "gtags-code.externalCommand": ["/path/to/executable", "--workspace", "${workspaceFolder}"],
+  "gtags-code.externalIndexCommand": ["/path/to/executable", "--index", "${workspaceFolder}"]
+}
+```
+The external process must expose the tool operations used for component/symbol search, file discovery, definitions, references, and callers over stdin/stdout. The indexing command is optional when only reading existing indices.
+
 ## Usage
 
 ### 1. Store Tags (Build the Tags DB)

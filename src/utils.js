@@ -35,10 +35,7 @@ async function checkDependencies(cmds) {
         child.stdout.on("data", d => output += d);
         child.stderr.on("data", d => output += d);
         child.on("error", () => reject(new Error(`Please install ${cmd} or provide its path in settings.`)));
-        child.on("close", (code) => {
-            if (code === 0 || code === 1) resolve(output.trim());
-            else reject(new Error(`Please install ${cmd} or provide its path in settings.`));
-        });
+        child.on("close", () => resolve(output.trim()));
     });
     
     for (const cmd of cmds || []) {

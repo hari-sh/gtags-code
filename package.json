@@ -30,6 +30,34 @@
           "type": "string",
           "default": "gtags",
           "description": "Path to gtags executable."
+        },
+        "gtags-code.engine": {
+          "type": "string",
+          "enum": ["gtags", "external"],
+          "default": "gtags",
+          "description": "Selects the code navigation engine."
+        },
+        "gtags-code.externalCommand": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Executable used by the external engine. Use ${workspaceFolder} for the workspace path."
+        },
+        "gtags-code.externalIndexCommand": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Arguments passed to the external indexing executable. Use ${workspaceFolder} for the workspace path."
+        },
+        "gtags-code.externalTimeout": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 1000,
+          "description": "Timeout in milliseconds for external engine requests."
         }
       }
     },

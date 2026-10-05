@@ -12,7 +12,10 @@ const config = vscode.workspace.getConfiguration('gtags-code');
 const providerConfig = {
   engine: config.get('engine') || 'gtags',
   globalCmd: config.get('globalCmd') || 'global',
-  gtagsCmd: config.get('gtagsCmd') || 'gtags'
+  gtagsCmd: config.get('gtagsCmd') || 'gtags',
+  externalCommand: config.get('externalCommand') || [],
+  externalIndexCommand: config.get('externalIndexCommand') || [],
+  externalTimeout: config.get('externalTimeout') || 5000
 };
 
 const tagsProvider = TagsProviderFactory.create(providerConfig);
