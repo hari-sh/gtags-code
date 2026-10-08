@@ -38,20 +38,34 @@
           "description": "Selects the code navigation engine."
         },
         "gtags-code.externalCommand": {
+          "type": ["string", "array"],
+          "items": { "type": "string" },
+          "default": "",
+          "description": "External MCP executable. Arrays using the legacy [executable, ...arguments] form are also supported."
+        },
+        "gtags-code.externalArgs": {
           "type": "array",
-          "items": {
-            "type": "string"
-          },
+          "items": { "type": "string" },
           "default": [],
-          "description": "Executable used by the external engine. Use ${workspaceFolder} for the workspace path."
+          "description": "Arguments passed to the external MCP executable. Use ${workspaceFolder} for the workspace path."
         },
         "gtags-code.externalIndexCommand": {
+          "type": ["string", "array"],
+          "items": { "type": "string" },
+          "default": "",
+          "description": "Optional external indexing executable. Arrays using the legacy [executable, ...arguments] form are also supported."
+        },
+        "gtags-code.externalIndexArgs": {
           "type": "array",
-          "items": {
-            "type": "string"
-          },
+          "items": { "type": "string" },
           "default": [],
           "description": "Arguments passed to the external indexing executable. Use ${workspaceFolder} for the workspace path."
+        },
+        "gtags-code.externalEnv": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "default": {},
+          "description": "Environment variables passed to external processes."
         },
         "gtags-code.externalTimeout": {
           "type": "number",

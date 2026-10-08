@@ -39,7 +39,17 @@ class TagsCodeViewProvider {
       if (msg.type === 'getTags') {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         try {
-          const data = await this.tagsProvider.getCallers(workspaceFolder.uri.fsPath, msg.tagName);
+          let data;
+          if (msg.mode === 'references') {
+            const iterator = this.tagsProvider.queryReferences(workspaceFolder.uri.fsPath, msg.tagName);
+            const items = [];
+            for await (const item of iterator) {
+              items.push(item);
+            }
+            data = items;
+          } else {
+            data = await this.tagsProvider.getCallers(workspaceFolder.uri.fsPath, msg.tagName);
+          }
           webviewView.webview.postMessage({
             type: 'getTags:response',
             id: msg.id,
@@ -55,8 +65,8 @@ class TagsCodeViewProvider {
         }
       } else if (msg.type === 'webviewReady') {
         this.isReady = true;
-        for (const symbol of this.pendingTabs) {
-          this.webviewView.webview.postMessage({ type: 'addTab', symbol });
+        for (const item of this.pendingTabs) {
+          this.webviewView.webview.postMessage({ type: 'addTab', symbol: item.symbol, mode: item.mode });
         }
         this.pendingTabs = [];
       } else if (msg.type === 'postFileInfo') {
@@ -66,13 +76,11 @@ class TagsCodeViewProvider {
     });
   }
   
-  addTab(symbol) {
-    if (!this.webviewView) {
-      this.pendingTabs.push(symbol);
-    } else if (!this.isReady) {
-      this.pendingTabs.push(symbol);
+  addTab(symbol, mode = 'callers') {
+    if (!this.webviewView || !this.isReady) {
+      this.pendingTabs.push({ symbol, mode });
     } else {
-      this.webviewView.webview.postMessage({ type: 'addTab', symbol });
+      this.webviewView.webview.postMessage({ type: 'addTab', symbol, mode });
     }
   }
 }

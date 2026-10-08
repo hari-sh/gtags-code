@@ -45,11 +45,16 @@ The navigation engine can be selected in workspace or user settings. The default
 ```json
 {
   "gtags-code.engine": "external",
-  "gtags-code.externalCommand": ["/path/to/executable", "--workspace", "${workspaceFolder}"],
-  "gtags-code.externalIndexCommand": ["/path/to/executable", "--index", "${workspaceFolder}"]
+  "gtags-code.externalCommand": "/path/to/executable",
+  "gtags-code.externalArgs": ["--workspace", "${workspaceFolder}"],
+  "gtags-code.externalIndexCommand": "/path/to/executable",
+  "gtags-code.externalIndexArgs": ["--index", "${workspaceFolder}"],
+  "gtags-code.externalEnv": {
+    "OPTIONAL_VARIABLE": "value"
+  }
 }
 ```
-The external process must expose the tool operations used for component/symbol search, file discovery, definitions, references, and callers over stdin/stdout. The indexing command is optional when only reading existing indices.
+The server must advertise tools for symbol/content search and caller lookup. Definitions, references, callers, and symbol indexing are adapted from the advertised tool schemas. The legacy array form for command settings remains supported.
 
 ## Usage
 

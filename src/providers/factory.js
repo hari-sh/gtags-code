@@ -12,7 +12,10 @@ class TagsProviderFactory {
                 }
                 return new ExternalProvider({
                     command: config.externalCommand,
+                    args: config.externalArgs,
                     indexCommand: config.externalIndexCommand,
+                    indexArgs: config.externalIndexArgs,
+                    env: config.externalEnv,
                     timeout: config.externalTimeout
                 });
 

@@ -1,0 +1,458 @@
+# Extracted Diff from Screenshots
+OCR extraction in screenshot order. Visible line numbers and diff markers are retained as closely as OCR allows.
+
+--- SCREENSHOT 1 ---
+
+diff --git EN ME.ad b/README , aa 41 + if (properties.output_format) args.cutput_format = ‘json’;
+index f3cdafl..b1136D5 100644 ag. 422 ¢ Af (properties. ranked) args.ranked = true;
+<=> a/README md ic “a > = — 433+ if (properties.depth && options.depth) args.depth = options .depth;
++++ b/README 0d Sr, wa Ae 44 + if (properties.liait && options. limit) args.limit = options. lisit;
+° ES a ase )
+extersal Engine a + Sea 427 +
+! 7 a mee el 428 + _parseToolResult(result) (
+) st -code” can use @ generic stdin/stdout JSON-RPC executable. This is configured vies 429 + if (!result || !Array.isArray(result.content)) return result;
+kend-specific integration code. . 431 + for (const content of result.content) {
+1 *?*¥s0n 432 + if (content.type !== ‘text’ || typeof content.text !== ‘string’) continue;
+>» a3 + try {
+4 - “gtags-code.externalCommand": [“/path/to/executable", *--apigkspace”, “$(workspaceFolder}°1, as + } catch (_) {
+S - “gtags-code.externalIndexCommand”: ["/path/to/executable", “--index”, "${workspaceFolder}”] 43% + values .push(content. text);
+6 + “gtags-code.externalCommand’: */path/to/executable”, 437 + }
+7 + “gtags-code.externalArgs”: [*--workspace”, “$(workspaceFolder}"], 4 + }
+8 + "gtegs-code.externalIndexCommand”: "/path/to/executable®, 439 + return values.length === 1 7 values[@] < velues;
+19 + “gtags-code.externalindexArgs*: ["--index”, "${workspaceFolder}"}, e+ =)
+1@ + “gtags-code.externalEnv®: { 41 +
+21 + “OPTIONAL VARIABLE": “value* 442 + _resultIteas(value) {
+2 + } 2 “3 ¢ if (Array.isArray(value)) return value;
+23 (} a+ if (!value || typeof value !== ‘object") return [};
+aad “5 + if (Array.isArray(value.items)) return value. items;
+25 -The external process must expose the tool operations used for component/symbol search, file discovery, definitions, references, and as + if (value. first_page && Array. isArray(value.first_page.itens)) return value. first_page.itens;
+allers over stdin/stdout. The indexing command is optional when only reading existing indices. “47 (+ if (Array. isArray(value.results)) return value. results;
+26 +The server aust advertise tools for symbol/content search and caller lookup. Definitions, references, callers, and symbol indexing are “a + return (1;
+dapted from the advertised tool schemas. The indexing command is optional when only reading an existing index. The legacy array fore for “go + )
+ommand settings remains supported. ase +
+277 451 + —_collectNames(value, output) {
+28 #8 Usage 452 + if (Array. isArray(value)) {
+29 3 + for (const item of value) this. collectNames(item, output);
+38 diff --git a/package.json b/package. json 434 return;
+31 index Sf66fd1..72d0177 190644 435 }
+32 --- a/package.json 4356 + if (!value || typeof value !== ‘object’) return;
+33 +++ b/package.json 457 + const name = value.name || value.syebol || value.tagtane;
+34 @@ -38,21 +38,35 ee 458 + if (typeof name === ‘string’ && nase) output.addiname);
+35 “description”: “Selects the code navigation engine.” 459 + for (const child of Object.values(value)) {
+36 }. 460 + if (child && typeof child === ‘object*) this. collectMames(child, output);
+bt “gtags-code.externalCommand": { 41 + }
+3 + "type": ["string", “array"], “2+ »}
+39 ¢ "items": { “type": "string" }, 43 +
+0 + "default": °*, a + async calltToolValue(tool, args) {
+“i+ “description”: “External MCP executable. Arrays using the legacy [executable, ...arguments) form are also supported.” “45 + const result = await this. sendRequestwithRetry(*toets/call*, {
+42 ¢ }, 6 + Name: tool.nase,
+a + “gtags-code.externalArgs”: { “47 (+ arguments: args
+“a “type”: “array”, 8 + ys
+“6 - “iteas": { 0 + if (result & result.isError) throw new Error{ External teel failed: ${tool.nane}*);
+“ - “type”: “string? 470 + return this. parseToolResutt (result);
+“7 - }. 471 + )
+ae “items”: { “type": “string” }, 472 +
+“” “detautt*: [], 473 ¢ _nextPage(value) {
+se - "description": “Executable used by the external engine. Use $(workspacefolder) for the workspace path.° 474 + if (tvalue || typeof value t== ‘ebject* || tvalue.next || !value.next.teot) return null;
+Sl ¢ “description”: “Arguments passed to the external MCP executable. Use ${workspacefolder) for the workspece path.” 47S + const page = value. first page || value;
+$2 ). 476 + if (page.total_pages && page.page >= page.total_pages) return null;
+33 “gtags -code.externalindexCommand”: { a7? ¢ return value.next;
+S4 ¢ "type": ["string", “array"}, m¢ )
+SS + “items*: { “type’: “string® }, es
+odiid “defautt™: °°, 400 + «async _callTool(workspaceRoot, tool, args) {
+57 + “description”: “Optional external indexing executable, Arrays using the legacy [executeble, ...arguaents) form are also 481 + await this. ensureStarted(workspaceRoot);
+) @oAo HP Runtatension(gragss) © Update available, cick to download.
+
+--- SCREENSHOT 2 ---
+
+zs ~~ ba cui ee ww + at CrveCum If CyWeur veswe Hm wwyers ff 1WOKWOLMEAS Ff FTE KER WEARS. KUUEy FeLUH NUEE,
+$2 s es 43% 4% + if (psge.total_peges && page.pege >= page.total pages) return null;
+“+ type": ["string™, “ar a re 4 ed
+6 + "default": ", ee : ae 400 + «= async _callTool(workspeceRoct, tool, args) {
+supported.* a ah 42 + const items © (J;
+58 + ae be ae 43 + let currentTool = tool.nane;
+a. “iteas": { Ae he ORE ec TE ey 406 + Const result © sveit this. senMequestwithetry{tools/call’, {
+4 "items": { "type": “string” }, : 489 + »;
+6s *defautt*: [], ; 490 + if (result && reselt.isError) throw new Error( External tool failed: ${currentToot}');
+e . “description®: “Arguments passed to the external indexing executable. Use ${workspacefolder) for the workspace path.” 491 + const persed = this. perseTootResult(result);
+67 }, IN 492 + itess.push(...this._resultItess(persed));
+e+ “gtags-code.externalEnav”: { 03 + Const next = this. nextPage(persed);
+69 + "type": “object”, 7 ao + currentTool © next 6&6 next.tool;
+7% + “additionalProperties*: { “type*: “string” }, 495 + currentArgs = next && next.srgunents;
+Lr “default: (, 4% + }
+72 ¢ “description*: “Environment variables passed to external processes.* 497 + return itens;
+3 ¢ }. 4% + )
+% “gtags -code.externalTineout™: { ~”
+7s “type”: “number*, see const args = this. indexCommand.slice(l) .saptarg <> arg.replace(’S${workspecefolder}’, workspaceRoot));
+76 "default": 5000, Sel - const cad © this. indexCommand[®] . replacet '${workspacefolder}”, workspacefoct);
+77 @@ -139,4 +153,4 @@ 302 + _absoluteFile(workspaceRoct, file) {
+78 "“@vscode/vsce": °*4.0.0°, 503 ¢ if (!file) return **;
+79 “esbuild*: **8.28.2° sea + return path. isAbsolute(file) ? file : peth.joiniwerkspecefiest, file);
+ae } ss + }
+81 -) 506
+S2 \ Mo newline at end of file 507 +  _normalizeLocation(workspaceRoot, iten) {
+a3 +} ses + if (!item || typeof item t== ‘object’) return null;
+84 diff --git a/src/main.js b/src/main.js seo + const file = ites.file || item.path || ites.file path || iten.filensne;
+8S index 3cbfe3c..SibSees 190644 $10 + const Line = Muaber(ites.line || item.start_line |] item.Line_cunber || iten.tno);
+86 --- a/src/aain.js Sil + if (!file || !Mumber.isFinite(line)) return aull;
+87 +++ b/src/main.js $12 + return {
+8B @8 -13,8 +13,11 @@ const providerConfig = ( $13 + fame: item.name || item.symbol || ites. tagiiane [f **.
+89 engine: config.get(‘engine’) || ‘gtags’, sua + file: this. absoluteFile(workspaceMeet, file),
+98 globalCad: config.get(‘globalCad‘) || ‘global’, $iS + line,
+91 QtagsCad: config.get(‘gtagsCad’) || ‘gtags’, $16 + Code: item.code |j item.source |] item.chunk || item.text j} **.
+92 - externalCommand: config.get(‘externalCommand’) {| {}, $17 + type: item.type || item.kind j} **
+93 - externalindexCommand: config. get (‘external IndexCommand’ ) Wo. sis + hi
+94 + externalCommand: config.get(‘externalCommand’) jj *’, 519 + )
+95 + externalArgs: config.get(‘externalargs’) || [1], $20 +
+96 ¢ externalindexCommand: config.get( ‘external IndexCommand’) jj *’, 521 + async *generateTags(workspaceRoot) {
+97 + externallndexArgs: config.get(‘externalindexArgs’) || [], 522 + if (!this.indexCommand) return:
+98 ¢ externalEnv: config.get(‘externalEny’) || {}, $23 + a@wait this.clearCaches();
+9 externalTimeout: config.get(’externalTimeout’) || 5600 $24 ¢ Const cad = this. expand(this. indexCommand, workspaceMeot);
+196}; 525 +« Const args = this.indexArgs.sagiarg => this. expand(arg, workspaceRect));
+191 $26 Const proc = cp.spawnicad, args, {
+162 @8 -93,4 +96,4 @@ aodule.exports = { $27 Cwd: workspaceRoot,
+163 if (tagsProvider.clearCaches) await tagsProvider.clearCaches(); 528. env: this.enavironment
+164 await closeDB(); $29 + env: this.eavironment,
+5} $30 + stdio: [‘ignore’, ‘pipe’, ‘pipe*)
+106 -}; eee nm oS
+
+--- SCREENSHOT 3 ---
+
+13 AY (Uagsrroviser.clearcacnes) @walt tagsrrovicer, clearcacnes(};> — — —_ =
+“ await closed8(); i eB env: TALS. environment
+5 } * ss sm + env: this.environment,
+97 \ No newline at end of file ea SE ge Tio 32 Js
+8 +}; a = wr a 5 Let errordutput
+119 index 2c40fba..b481247 100644 i a - aad SN proc.stderr.on( ‘data’, data => { errordutput e= data.toString(); });
+111 --- a/src/providers/externalProviser.js : ‘i ; ’ ne a on Saad peemere  (remeure eeree ae
+113 @@ -1,177 +1,505 @@ _ aa | aa y proc.on('exit', code => {
+SSA count cp Civcalirel’ cnilalproceerit he. _ : if (code === 6) resolve();
+115 const readline = require(’readline’); J ft S39 - else reject(new Error( External indexing process exited with code $(code}’));
+116 -const vscode = require('vscode’); F Po + 5) else reject(new ErrorterrorOutput.trim() || “External indexing process exited with code ${code)°));
+217° +const 8 . ;
+11B + pony rea eee sa proc.on(‘error’, reject);
+119 +let yscode; 334 »);:
+BD etry h Ms: yield ‘Tags DataBase created successfully. ';
+121 + —vscode ‘ ' se
+eee Piece vscode’); 36 + yield ‘External index created successfully. ';
+230+ vscode = mull; se )
+ad Md 549 async *stresaSyabols(workspaceRoct) {
+: : sse - const response = await this. request (workspaceRoct, "search components’, {});
+ad +const WORKSPACE TOKEN = '${workspaceFolder}’; $s. - if (response && Array.isArray(response.itens)) {
+is (Fibss biter lbreviserit ss2 - for (const item of response.items) {
+ss} - yield iten;
+44 aid ipehkirle = t) ¢ ssa + await this. ensureStarted(workspaceRoot) ;
+aa > ees = age ig sss + if (this.protocol === ‘direct') {
+32 6+ const command = this, normalizeCommand (options, command, options.ergs); $s? K farticanee, ay EE eer eas rT mt oon
+a4 + const indexCommand = this. normalizeCommand (options. indexCommand, options .indexArgs); sso + const name = typeof item === ‘string’ ? item ; ites.nase || item. syabol;
+135 4 this.command = command.executable; a4 4 eee une!
+. . + )
+136 + this.args = command.args; S61 ¢ return;
+137 + this.indexCommand = indexCommand.executadle; 562 ¢ }
+138 + this.indexArgs = indexCommand, args; 563 +
+4 this.timeout = options.timeout || 5000; 564 + const seen = new Set();
+° 565 +
+wmio¢+ this.environment = Obdject.assign((}, process.env, options.env 11 Od 366 + const fileListTool = this. fileListTool();
+192 this.startPromise = null; S67? + const fileOverviewTool = this. fileOverviewTool();
+“43 this .pendingRequests = new Map(); ses + if (fileListTool 6&& fileOverviewTool) {
+144 this .nextMessageld = 1; 500 + const Listed = aweit this. callToolValue(filetistToot, this. arguaentsFor(filetistTool, **. { Limit: 10060 }))i
+145 this.process = null; 570 + const files = Array.isArray(listed) ? Listed : Listed. files |] Listed.items || [1];
+146 «C- S71 + const fileProperty = ['file_node’, ‘file’, ‘path’, *file name’)
+4 - Soe ern ats Suet cote: process .env); 572 ¢ .find(key => this._toolProperties ( fileOverviewToot) [key]);
++ wo! ci 2 null; 573 +
+149 + this.protocol = null; 574 + for (let offset = @; offset < files.tength; offset r= 8) {
+ise + this.tools = []; 575 + const batch = files.slice(offset, offset + 8);
+151 , S76 + const overviews = await Promise.all(batch.map(file => {
+152 s77 + const fileName = typeof file === ‘string’ ? file : file.file || file.path || file.name;
+a4 , DVR cheer { A s78 + return this. callTootValue( filedverviewTool, { [fileProperty]: fileName });
+> if (this.process) s79 + })):
+us this .process.kill(); see ¢ for (const overview of overviews) this. collectNames(overview, seen);
+iss Ce this.process = null; S61 + )
+13s? + _normalizeCommand( command, args) { $62 + } else {
+138 + if (Array.isArray(command)) { 583 ¢ const tool = this. searchTool();
+189 + return { sea + if (1tool) throw new Error( ‘External engine does not advertise @ symbol search tool.');
+ise + executable: command[6} || °". ses + const items = await this. callTool(workspaceRoot, tool,
+161 + args: ({...command.stice(1), ..-(Array.isArray(args) ? args = [1)) se6 + this. argumentsFor(tool, *.*’, { contentSearch: false, verbosity: ‘names_only’ }));
+162 + oy se7 ¢ for (const item of items) {
+363 } ses ¢ const name = typeof item === ‘string’ ? item: item.name || item.symbol || iten.taghame;
+seo + if (name) seen.add(name);
+™ B® ec
+
+--- SCREENSHOT 4 ---
+
+eee eid } else {
+i eee : Sas + const tool = this. searchTool();
+= a : sua ¢ if (1tool) throw new Error("External engine does not advertise a symbol search tool.');
+AS Ses + Const items = mait this. callTool(workspaceRoot, tool,
+* Shas 3 + this. _argumentsFor(tool, '.°', { contentSearch: false, verbosity: ‘names only’ }));
+. — 37 + for (const item of items) (
+Ea, sae + Const name = typeof item === ‘string’ ? item : itea.name || item.syebol || ites. taghane;
+_ 338 + if (name) seen.add(nane);
+3 i , ai. ee |; ¥ soy - Const response = await this. request(workspeceMoct, ‘query definitions’, { key });
+Bs La soe - if (response && Array.isArray(response.itens)) {
+7 meres FT ||
+174 + async clesrCaches() ( ee ee) rR so - for (const item of response.itens) (
+% +protocol = y Hei i Po, @e2 + await this. ensureStarted(workspeceRoct);
+1799 +. >} “es freee! a ey ie Si) ot e+ const response = await this. sendRequest( ‘query definitions’, { key });
+™ + “eek ae zs Os + for (const item of (response && response.itens) || [}) yield iten;
+181 ¢ _stopProcess(error) ( = : fal oe + return;
+182 + const processToStop = this.process; 4 oa @? }
+183 ¢ this.process = null; . ' as
+eedlid this .workspaceRoot = null; om + const dedicated = this. findTool(['definition’], tool => {
+135 + if (processToStop) processToStop.kitl{); 6 + const properties = this. toolProperties (tool);
+186 + 611 ¢ return Boolean(properties.syabol || properties.name || properties.key || properties pattern);
+187 + for (const [, request] of this.pendingRequests) ( 612 ¢ n;
+188 + clearTimeout ( request. tiaeoutld); 63 + const tool = dedicated || this. searchTeol();
+189 + request, reject(error); ou ¢ if (!tool) throw new Error('External engine does net advertise a definition or symbol search tool.*);
+198 + ) GS ¢ const pattern = this. toolProperties(tool).pattern ? "“${this._escapeRegExp(key)}$" : key;
+191 + this .pendingRequests,clear(); 616 + const raw = aweit this. call Tool(workspaceRoot, tool,
+192 ) 617 + this. argumentsFor(tool, pattern, { contentSearch: false, verbosity: ‘metadata’ }));
+193 ou ¢ let matches = rav.map(item => this. normalizelocation(workspaceMoct, item)). filter (Boolean);
+194 async _ensureStarted(workspaceRoot) { 619 ¢ watches = matches.filter(item => tites.nane || item.name === key):
+195 ¢ if (this.process 6& this.workspaceRoot t== workspaceReot) ¢ 620 + const definitions = matches. filter(ites => !/declaration|prototype/i.test(iten.type));
+196 + e@wait this.clearCaches(); 621 ¢ : for (const match of definitions.length ? definitions : matches) yield natch;
+197 + }
+198 if (this.startPromise) return this.startPronise; 623
+199 - this.startPromise = this. startworkspaceProcess (workspacenoot) ; 624 async *queryReferences(workspaceRoot, symbol) {
+200 + this.startPromise = this. startWorkspaceProcess (workspaceReot).catchierrer => { 623 - const response = await this. request(workspaceRoot, ‘query_references', { symbol });
+201 + this .startPromise = null; 626 if (response && Array.isArray(response.iteas)) {
+202 + throw error; * - for pri of response.itens) {
+203 ¢ »); ° i
+return this.startPronise; 629 + await this. ensureStarted(workspaceRoot);
+4 > 638 + if (this.protocol === ‘direct’) {
+206 631 + const response = await this. sendRequest(‘query references’, { syabol });
+207 async _startWorkspaceProcess(workspaceRoot) { a . for (const item of (response && response.itens) || [}) yield ites;
+- if (this.command tthis.command. length) { return;
+4 + if frowsigeaen. a = 4 }
+220 throw new Error(’Configure gtags-code.externalCommand before using the Bad ANE Nee :
+6% + const dedicated = this. findTool(['reference’, ‘usage’, ‘users']}, tool => (
+4 , 637 ¢ const properties = this. toolProperties(tool);
+= const args = this.command.stice(1).eap(arg => arg.replace('${workspacefolder}', workspaceMoot)); 638 ¢ return Boolean(properties.syabol || properties.selected component || properties.nane || properties.key)
+. .command[@]. replace('${workspaceFolder}', workspaceReot 639 + »;
+a ae > ae sali : , $ oe + const tool = dedicated || this._searchTool();
+f yu) thy Error('External does not advertise a reference or content search tool.*);
+26 ~- this.process = cp.spamicad, args, { - e Poor ae !dedicated; —
+a + Const orgs © this.orgs-sepierg => this.cxpandiorg, . ape aa + const raw = await this. callTool(workspaceRoot, tool,
+218 ¢ const cad = this. expand(this.command, workspaceReot);
+> @®oLo PH RunExensonigtagss) © Update avaiable, click to download.
+
+--- SCREENSHOT 5 ---
+
+a ani ad ‘ Se oes = aay es ‘usage’, “users'], tool => ( ~
+14 - ceRoet)); ou st cl panasiiaaentes ; rties(tool);
+et - ne = ” Symbol || properties.selected component || properties.name || properties .key);
+7 ‘ ; : E ee 64 «+ Const tool = dedicoted I] this. searchToot
+22 - nv: this.envirensent i ee — = Const syabolPattern = new RegExpt’ (7:“|[“A-Ze-20-9_J)S{this._escapeRegexp(syabol}}{?!(A-Za-20-9 J)");
+222 - v; ; io nr ee 8 + const seen = new Set();
+ag ; i re a a7 + for (const item of raw) {
+224: this.process.on(‘error’, (err) => ( ' os + const location = this. normslizelocation(workspeceRoct, ites);
+25 - vscode.window. showErrorMessage( External engine failed to start: ${err.message}*) eee ee
+226 + env: this.environsent, : = > const Lines = String(location.code || “")-splitt/\?\a/);
+227 « stéio: [‘pipe’, ‘pipe’, ‘pipe’l 61 + const matchingLines = contentSearch
+228 »; h 2 + 7 Lines.aap((code, index) => ({ code, Line: location.line + index }))-filter(entry <> sysbolPattern.test(entry.code))
+229 + this.process = child; 4 : Tor ; Sg “onoembos — a
+230 + this. s 3 ¥ const aatch ¢
+workspaceRoot = workspaceRoot es + const unique = *${location. file}: ${astch. Line) -${mstch. code)”;
+231 )
+232 - const rl = readline.createlInterface(( sande if (seen.has(unique)) continue;
+233 - input: this.process. stdout ala apd
+26 =C« crlfDelay: Infinity i ae + yield { file: location.file, Line: astch.Line, code: astch.code.tria() };
+235 ¢ child. stderr.on(‘data’, data => { 4 } f
+236 + const message = data. toString().tria(); 1 >
+237 + if (message) console.error(' gtags-code external engine: ${message}*); 2
+oa ; 3 async getCallers(workspaceRoot, symbol) {
+J ou - const response = await this. request(workspecefoct, ‘get callers’, { syabel });
+240 - rl.on(*line’, (line) => { os - if (response && Array. isArray(response.itens)) {
+2 + const rl = readline.createInterface({ input: child.stdout, crifDelay: Infinity }); oe - return response. itens;
+242 0+ rl.on('line’, Line => { “7? + await this. ensureStarted(workspaceRoot);
+243 if (!line.tria()) return; os ¢ if (this.protocol === ‘direct’) {
+244 try { oe + const response = await this. sendRequest(‘get catlers’, { syatel });
+246 «Ce this. _handleMessage(aessage) ; 671 )
+247 } catch (err) { 672 - return (1);
+248 «Ct 11 Ignore parse errors from stdout 673 +
+269 ¢ this. _handleMessage(ISON.parse(Line)); 674 + const tool = this. findTool([{‘caller'}, candidate => {
+250 ¢ } catch (_) 673 ¢ const properties = this. toolProperties (candidate);
+= + j console.error('gtags-code: Ignoring non-JSOM external engine output: ", Line); = + return Boolean(properties.syabot || properties.selected component || properties.nane || properties.key);
++ »;
+283 3 678 + if (1tool) throw new Error(’External engine does not advertise a caller tool.*);
+254 679 + const raw = await this. callTool(workspaceReot, tool,
+2s - this.process.on(‘exit', (code) => { ose + this. argumentsFor(tool, syabel. { depth: 1, verbosity: ‘setadate’ }));
+26 =C- this.process = null; 681 + const locations = raw.map(item => this. sormalizetecation(werkspaceRect, iten)). filter(Bootean) ;
+237 ¢ child.on(‘error’, error => { 662 + const resolved = await Promise.all(locations.maptasyne tecation => {
+28 if (vscode) vscode. window. showErrorttessage( “External engine failed to start: ${error.message)*); 603 + if (1/declaration|prototype/i.test(tecation.type)) return lecation;
+259 ¢ this. stopProcess(error); 6a + const definitions = [};
+2680 ¢ : oss + for await (const definition of this .queryOefinitions (workspacefect, Vecation.nane)) {
+261 ¢ 66 + definitions .push(definition) ;
+262 ¢ child.on(‘exit', code => { 687 + )
+263 ¢ if (this.precess t== child) retura; oes + return definitions[®@}] || tecatian;
+264 + this. stopProcess(new Error( “External engine process exited with code ${code}*)); 689 + »):
+268 this.startProsise = null; 698 + const seen = new Set();
+266 - for (const [, request] of this.pendingRequests) { on ¢ return resolved. filter(ites => {
+267 - request. reject(new Error( External engine process exited with code ${(code}*)); 692 ¢ const key = “${item.name):$(item. file}:${item. Line)”;
+28 - } a + if (seen.has(key)) return false;
+20 - this .pendingRequests.clear(); om + seen. add(key) i
+270 + this.protocol = null; m+ reteta trate
+27 this.tools = [1]; 696 + }) .map(item => ({ name: ites.name, file: item.file, Line: item.Line }));
+_ 272 rr, ame jn oe tenttate muaitable cick to download. aml : i @ econ
+
+--- SCREENSHOT 6 ---
+
+7 oe + const seen = new Set();
+std @1 + return resolved. filter(ites => (
+=e on + const key = “${iten.neme}:${itew. file}:${iten. Line)”;
+268 , Bie y 693 + if (seen. hes(key)) return false;
+(278 + ptocol z ‘ (Ci agtl os ¢ retorn tree;
+me tools = | , feet ‘pin 6 + }).maptites => ({ name: item.name, file: ites.file, line: ites.line }));
+M | Oey a We
+273 ay bes 2 ee a . - asks 5.1 it . os +
+on a on = ro een eos othe 700 ¢ return String(valus) .replace(/{.*s?°S{} CV }ININNI/9, "N\S6");
+278 + capabilities: (),  iaa eit ee P 703
+21 ¢ if (initialized G& initialized.capabilities) { Reimar pele : 706 diff --git a/src/providers/factory.js b/src/providers/factory.js
+232 + this.protocol = ‘mcp'; : r 707 index e4fc605..caS@4la 160644
+23 + this._sendNotification( 'notifications/initialized’); 706 --- a/src/providers/factory.js
+24+ const Listed = await this. sendRequest(‘tools/list’, (}); 709 +++ b/src/providers/factory.js
+2S + this.tools = Array. isArray(listed && listed.tools) ? Listed.teols : []; 710 @@ -12,7 +12,10 €@ class TagsProviderFactory {
+26 + return; 71 }
+27 04+ > 712 return new ExternalProvider({
+28 } catch (error) { 713 command: config.externalCommand,
+289 + if (!this.process) throw error; 714 + args: config.externalargs,
+299 + } 15 indexComnand: config.externelIndexComand,
+291 ¢ 716 + indexArgs: config.externalindexArgs,
+292 ¢ 11 Compatibility with engines implementing the original direct RPC contract. 717 + env: config.externel£nv,
+293 ¢ this.protocol = ‘direct’; 718 timeout: config.externatTinesut
+204 d 79 nv:
+2395 720
+296 _handletessage(message) { 721 diff --git a/src/providers/gtagsProvider.js b/src/providers/gtagsProvider . js
+207 - if (message.id && this.pendingRequests.has(message.id)) { 722 index abeteS4..2e9ea44 100644
+268 - const request = this.pendingRequests.get(message.id); 723 --- a/src/providers/gtagsProvider.js
+2 - if (eessage.error) { 724 +++ b/src/providers/gtagsProvider.js
+30 - request. reject(new Error(message.error.message || ‘Unknow error’)); 725 @@ -106,7 +108,7 @@ class GtagsProvider {
+1 ) else { 726 async *queryOefinitions (workspaceMect, key) {
+3e2 - request. resolve(message. result); 727 Af (they || tkey.trim()) return;
+303 ~- } 728
+306 - this .pendingRequests .delete(message. id); 729 ~- for await (const tag of this.runGlebal({*-xd", hey.tria()}. {
+305 - ? 7 ¢ for avait (const tag of this. runGlobal([*-xd", hey.triat)}. {
+306 ¢ if (message.id === undefined || !this.pendingRequests.has(message.id)) return; 731 cud: workspaceRoot,
+307 ¢ const request = this. pendingRequests .get (message. id); 732 reflectionError: false
+308 + clearTiaeout (request. timeout!¢) ; 733 »4
+309 ¢ this .pendingRequests .delete(sessage. id); 734 @@ -130,7 +130,7 @@ class GtagsProvider {
+310 ¢ if (massage.error) request.reject(new Error(eessage.error.message || ‘Unknown external engine error')); 738 const target = syabel.tria();
+311 ¢ else request.resolve(message. result); ™% const seenLines = new Set();
+312 > 737
+313 7 - for await (const tag of this.runGlobet({*-ra", target}, {
+314 - async request(workspaceRoot, method, parass) { 739 + for await (const tag of this. runGlobat({*-rx", target], {
+35 - await this. ensureStarted(workspaceRoot) ; 7 cud: workspaceReot,
+316 + _sendNotification(method, params) ( 741 reflectionError: false
+317 + if (!this.process || !this.process.stdin.writable) return; 742 yo ¢
+318 ¢ this .process.stdin.write(JSON.stringify({ jsonrpc: °2.0', method, params }) + ‘\n'); 743 @@ -166,8 +166,? @@ class GtagsProvider (
+319 « »} 744 cud: workspaceRoet,
+320 7s reflectionErrer: false
+321 - if (1this.process) { 146 he |
+322 - throw new Error(‘External engine is not running’); m7? Af (ithis. isFunctionTag(tag)) centinue;
+323 ¢ _sendRequestiaethod, parass) { 74a «(C- const range = this. findFunctionRange(workspaceReot, tag.file, tag. line);
+324 ¢ if (!this.process || !this.process.stdin.writable) { 79 «+ const range = this. getFunctionRangeForTag(workspaceRoot, tag);
+325 ¢ return Promise. reject(new Error( ‘External engine is not running’)); 750 Af (range) functions.push{{ ...tag, ...range });
+rh) S
+1 1 \ nan & “y
+
+--- SCREENSHOT 7 ---
+
+= < Seste il Mt cea 4s reflectionError: false
+3B heque ; lie eee) || | if (Ithis._AsFonctionTag(tag)) continue;
+' me % ' eT Ue 3 oe ; ar : H 748 const range = this. findFunctionRange(workspaceRoot, tag.file, tag.line);
+| ili a e sen mth ss if (range) functions.push{{ ...tag, ..-range });
+327 is > he Me ¥)
+328 const id = this.nextNessagelde+ aan Pe é oe
+336 const promise = new Promise((resolve, reject) => { at files aoa ie Say | iS 4 : gy gpl ; “ oe
+= .ee i ee ce mn il ii tea om + throw new Error(“${target} is not s function};
+338 this.pendingRequests .delete(id) ; an iil IN | 763 ;
+339 reject(new Error( External engine request timeout for method: spe TANK | TAT cacheKey workspaceRoot} :${symbol
+~ , Nesiecrinoe z steeenog 5 li ii 164 - const = “56 F-Ssyabouy” 5
+mi: i | | HATH i | 75 + const cacheKey = ‘${workspeceRoot} -${target}” ; ;
+a ue sata 5 Hit | in MIA | 766 if (this.callGraphCache.has(cacheKey)) {
+ed SS pendingReque: (id, { resolve, reject, timaoutId }); i i i Wi | i | 767 return this.callGraphCache.get (cachekey) >
+ae NANA i 768 }
+| AN A 769
+45 this.process .stdin.write(JSON.stringify(message) + '\n'); WAAL
+vinta ee see Uae gl aes ii ai 778 - const callersPromise = this. getCallersUncached(workspaceRoct, symbol);
+” matt ‘ite(JSON.stringify({ jsonrpc: '2.6', id, method, params }) + *\n"); i 771 «+ const callersPromise = this. getCallersUncached(workspacefcet, target);
+ronise | 772
+348 }
+od 773 this .callGraphCache.set(cacheKey, callersPromise);
+74 try {
+358 - async *generateTags(workspaceRoot, files) {
+351 - if ({this.indexCommand || !this.indexCommand.length) { Ay at ace ne Pnerrrecseer's
+352 + async sendRequestWithRetry(method, params, att rUniqueCca yebo!
+= Pepi ry pa » attempts = 5S) { 777 _filte Llers(callers, s| ut
+778 const withoutSelf = callers. filter(catler => 3
+354 + for (let att = 6; attempt ; : See
+aged ay, enpt j attempt < attempts; attempte+) { 779 ~«- const nameCounts = new Map{);
+780 -
+356 + return await this. s t(method,
+sedis a pe ag, _sendRequest ( params); 781 - for (const caller of withoutSelf) {
+=? Peer) Lan = : ; naneCounts.set(caller.name, (nameCounts.get{caller.name) || @) + 1);
+ps4 + if (!this.process || attempt === attempts - 1) throw error; Tea
++ await new Pronise(resolve setTimeout ‘tempt nameCounts . name)
+fet ‘ - (resolve, 250 * (at +0); 785 return withoutSelf.filter(calter => get (caller. = 1);
+amd ; 786 + const seen = new Set();
+dh on | 787 + return withoutSelf.filter(catler => {
+ps ed 4 788 + const key = ~${caller.name}:${calter.file}:${caller.line} ;
+ed | 789 + if (seen.has(key)) return false;
+366 + async request(workspaceRoot, method, params) { i f Sipe
+367 ¢ await this. ensureStarted(workspaceRoot) ; 792 i teint
+368 ¢ return this. sendRequest(sethod, params); i i
+Le nl 793 }
+370 ¢ ! qi sat LeReference(warkspaceRoot, symbol)
+371 +  _toolProperties(tool) { | 4 ee Ae py GtagsProvider ‘ ‘
+372 ¢ return (tool && tool. inputSchema && tool. tSchema. rties | i. inne — oe f
+si ; inpu prope: 1 0; | 797 cwd: .
+t | 798 reflectionError: false
+375 +  _findTool(words, predicate = () => true) { poe hi
+ f paige eee - if (ithis._ isFunctionTag(tag)) continue;
+ea ee ee | eel - const functions = await this. getFunctionsInFile(workspaceRoot, tag. file);
+ily fe tee ae ee2 if (functions.some(func => func.symbol === symbol.tria{))) return true;
+ai it (ieceastecnash octet = + , if (this._getFunctionRangeForTag(workspaceRoot, tag)) return true;
+pee “tad Sy ee a 5 eS a I A ON ee eee PN eanr
+
+--- SCREENSHOT 8 ---
+
+ohhh aan os RS De alee ea atc
+: a 798 reflectionError: false
+375 ¢ ! ee ly eee - if (Ithis._isFunctionTag(tag)) continue;
+276 ; oan De ee eel - const functions = await this. getFunctionsInFile(workspaceRoct, tag. file);
+a7 e ¢ i I uit Bez - Af (functions.some(func => func.symbol === symbol.tria())) return true;
+if (core » bestscore) (nn Se UCU 807 €8 -281,6 +279,33 €@ class GtagsProvider { :
+28 : Pina pee aS mh fel x Bee return new RegExp(” (7:7 |(“\Wwel)${this._escapeRegExp(tag. symbol) }\\s*W\C )-test (source) ;
+ed 2.3 . Bic. hee A RD TIT 812 + if (!tag || !tag-symbol [| !tag.file |] !Mumber.isFinite(tag.Line)) return null;
+ri iis gt Hh ae || eis + if (!range) return null;
+ab cachotlsisel., . : AN Wil Wer HWA WV cis 6
+ie Se ee ee shy tere HH il | NTTVIVAGHOH Hh | | 817 + const fullPath = path. isAbsolute(tag. file} ? tag-file < path. join(workspaceRoot, tag. file);
+392 + const properties = this._toolProperties (tool); PANN WA aan agian .
+393 + return Boolean(properties.pattern || properties.query); i ih) | | ] | — oe ; :
+a Nall eeu i Mi] 820 + Lines = fssync. readFileSync({fullPath, ‘utfs").splitt/ve7\n/};
+395 + } \| Hen 1h BT a Sata
+a leLis | i Hi At 822 + return null;
+397 + _fi tTool() { AW AH oe :
+398 + return this. findTool(['list’, ‘all’, ‘file’}, tool => { WII Ht | | ae
+399 + const properties = this. toolProperties (tool); | WN) ae ee ai HSL
+ashi oT earebign eee. 5 ss | | 826 + .slice(Math.max(@, range.startLine - 1), range.bedyStartLine)
+401 + return /file/i.test(*${tool.name || ''} ${tool.description || °'}”) | | aa Ll pei 1: :
+402 + & keys.every(key => key === ‘limit’ || key === ‘offset'); oe Percinay) _StriptineComnent (tine)
+403 + vi; a
+e : | | 830 + if (/*\s*#/.test(signature)) return null;
+Ai ledve ud) { a31 + const functionPattern = new RegExp(
+= a dibpstiacph 832 + * (2:4) [*\\w1)${this._escapeRegExp(tag-syabol) VS“,
+407 + return this. findTool(['file', ‘overview’, ‘object’, ‘symbol'], tool => { acl ty !
+408 ¢ const properties = this. toolProperties (tool); at i)
+sand Haire, meaanel pranersies Stn SIRE ere : i soe + return functionPattern.test(signature) ? range = null;
+410 + vn; Seles
+4ll + ) a
+-? rgqumen 638 _findFunctionRange(workspaceRoot, file, Line) {
+e? * mePerttae, Yea, Seine Bs 639 const fullPath = path.isAbsolute(file) 2? file = path. join(workspaceRoot, file);
+414 ¢ const properties = this. toolProperties(tool); ad patony
+4s + const args = {); h MN vith
+416 + const valueKeys = ['‘pattern', ‘query’, ‘symbol’, ‘selected_component’, ‘component’, ‘name’, key'];
+417 ¢ const valueKey = valueKeys.find(key => properties [key));
+418 + if (valueKey) args[valueKey) = value; :
+419 + if (properties.content_search && options.contentSearch !== undefined) negp Keenan search = options. contentSearch;
+420 ¢ if (properties.verbosity) args.verbosity = options.verbosity || *metadata’;
