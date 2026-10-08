@@ -42,9 +42,22 @@ async function goToDefinition(context) {
   await jump2tag(context, editor, tagsProvider);
 }
 
-async function getReferences(context) {
+async function getReferences(context, provider) {
   const editor = vscode.window.activeTextEditor;
-  await getReferencesInternal(context, editor, tagsProvider);
+  const gtagSymbol = getTag(editor);
+  if (!gtagSymbol || !gtagSymbol.trim()) {
+    vscode.window.showErrorMessage('No tag/symbol selected');
+    return;
+  }
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+  if (!workspaceFolder) {
+    vscode.window.showErrorMessage('No workspace folder open');
+    return;
+  }
+  await vscode.commands.executeCommand('gtags.panelView.focus');
+  if (provider) {
+    provider.addTab(gtagSymbol.trim(), 'references');
+  }
 }
 
 async function getCallers(context, provider) {
@@ -63,7 +76,7 @@ async function getCallers(context, provider) {
 
   await vscode.commands.executeCommand('gtags.panelView.focus');
   if (provider) {
-    provider.addTab(gtagSymbol.trim());
+    provider.addTab(gtagSymbol.trim(), 'callers');
   }
 }
 
@@ -79,7 +92,7 @@ module.exports = {
     context.subscriptions.push(vscode.commands.registerCommand('extension.storeTags', storeTags));
     context.subscriptions.push(vscode.commands.registerCommand('extension.searchTags', searchTags));
     context.subscriptions.push(vscode.commands.registerCommand('extension.jumpTag', goToDefinition));
-    context.subscriptions.push(vscode.commands.registerCommand('extension.getReferences', getReferences));
+    context.subscriptions.push(vscode.commands.registerCommand('extension.getReferences', () => getReferences(context, tagsCodePanelProvider)));
     
     tagsCodePanelProvider = new TagsCodeViewProvider(context, tagsProvider);
     context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => getCallers(context, tagsCodePanelProvider)));
