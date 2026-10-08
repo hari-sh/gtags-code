@@ -1,5 +1,5 @@
 const GtagsProvider = require('./gtagsProvider');
-const ExternalProvider = require('./externalProvider');
+const { ExternalProvider } = require('./externalProvider');
 
 class TagsProviderFactory {
     static create(config) {

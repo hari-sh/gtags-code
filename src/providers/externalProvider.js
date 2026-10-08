@@ -216,9 +216,9 @@ class ExternalProvider {
     }
 
     _fileOverviewTool() {
-        return this._findTool(['file', 'overview', 'object', 'symbol'], tool => {
+        return this._findTool(['object', 'overview', 'symbol', 'file'], tool => {
             const properties = this._toolProperties(tool);
-            return Boolean(properties.file || properties.path || properties.file_name);
+            return Boolean(properties.file_node || properties.file || properties.path || properties.file_name);
         });
     }
 
@@ -229,7 +229,9 @@ class ExternalProvider {
         const valueKey = valueKeys.find(key => properties[key]);
         if (valueKey) args[valueKey] = value;
         if (properties.content_search && options.contentSearch !== undefined) args.content_search = options.contentSearch;
-        if (properties.verbosity) args.verbosity = options.verbosity || 'metadata';
+        if (properties.verbosity) {
+            args.verbosity = options.verbosity || (options.contentSearch ? 'full' : 'metadata');
+        }
         if (properties.output_format) args.output_format = 'json';
         if (properties.ranked) args.ranked = true;
         if (properties.depth && options.depth) args.depth = options.depth;
@@ -282,11 +284,41 @@ class ExternalProvider {
         return this._parseToolResult(result);
     }
 
-    _nextPage(value) {
-        if (!value || typeof value !== 'object' || !value.next || !value.next.tool) return null;
+    async callToolPages(tool, args) {
+        const pages = [];
+        let currentTool = tool.name;
+        let currentArgs = args;
+        let paginationTool = null;
+        
+        while (currentTool) {
+            const result = await this.sendRequestWithRetry('tools/call', {
+                name: currentTool,
+                arguments: currentArgs
+            });
+            if (result && result.isError) throw new Error(`External tool failed: ${currentTool}`);
+            
+            const parsed = this._parseToolResult(result);
+            pages.push(parsed);
+            
+            const next = this._nextPage(parsed, paginationTool);
+            if (next && next.tool) paginationTool = next.tool;
+            currentTool = next && next.tool;
+            currentArgs = next && next.arguments;
+        }
+        
+        return pages;
+    }
+
+    _nextPage(value, paginationTool = null) {
+        if (!value || typeof value !== 'object') return null;
         const page = value.first_page || value;
         if (page.total_pages && page.page >= page.total_pages) return null;
-        return value.next;
+        if (value.next && value.next.tool) return value.next;
+        if (!paginationTool || !page.handle || !page.page || !page.total_pages) return null;
+        
+        const args = { handle: page.handle, page: page.page + 1 };
+        if (page.page_size) args.page_size = page.page_size;
+        return { tool: paginationTool, arguments: args };
     }
 
     async _callTool(workspaceRoot, tool, args) {
@@ -294,6 +326,7 @@ class ExternalProvider {
         const items = [];
         let currentTool = tool.name;
         let currentArgs = args;
+        let paginationTool = null;
         while (currentTool) {
             const result = await this.sendRequestWithRetry('tools/call', {
                 name: currentTool,
@@ -302,7 +335,8 @@ class ExternalProvider {
             if (result && result.isError) throw new Error(`External tool failed: ${currentTool}`);
             const parsed = this._parseToolResult(result);
             items.push(...this._resultItems(parsed));
-            const next = this._nextPage(parsed);
+            const next = this._nextPage(parsed, paginationTool);
+            if (next && next.tool) paginationTool = next.tool;
             currentTool = next && next.tool;
             currentArgs = next && next.arguments;
         }
@@ -378,19 +412,23 @@ class ExternalProvider {
             
             for (let offset = 0; offset < files.length; offset += 8) {
                 const batch = files.slice(offset, offset + 8);
-                const overviews = await Promise.all(batch.map(file => {
+                const overviewPages = await Promise.all(batch.map(file => {
                     const fileName = typeof file === 'string' ? file : file.file || file.path || file.name;
-                    return this.callToolValue(fileOverviewTool, { [fileProperty]: fileName });
+                    return this.callToolPages(fileOverviewTool, { [fileProperty]: fileName });
                 }));
-                for (const overview of overviews) this._collectNames(overview, seen);
+                for (const pages of overviewPages) {
+                    for (const page of pages) this._collectNames(page, seen);
+                }
             }
         } else {
-            const tool = this._searchTool();
-            if (!tool) throw new Error('External engine does not advertise a symbol search tool.');
-            const items = await this._callTool(workspaceRoot, tool, this._argumentsFor(tool, '.*', { contentSearch: false, verbosity: 'names_only' }));
-            for (const item of items) {
-                const name = typeof item === 'string' ? item : item.name || item.symbol || item.tagName;
-                if (name) seen.add(name);
+            if (seen.size === 0) {
+                const tool = this._searchTool();
+                if (!tool) throw new Error('External engine does not advertise a symbol search tool.');
+                const items = await this._callTool(workspaceRoot, tool, this._argumentsFor(tool, '.*', { contentSearch: false, verbosity: 'names_only' }));
+                for (const item of items) {
+                    const name = typeof item === 'string' ? item : item.name || item.symbol || item.tagName;
+                    if (name) seen.add(name);
+                }
             }
         }
         
