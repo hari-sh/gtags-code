@@ -44,6 +44,7 @@ class TagsCodeViewProvider {
             const iterator = this.tagsProvider.queryReferences(workspaceFolder.uri.fsPath, msg.tagName);
             const items = [];
             for await (const item of iterator) {
+              item.displayFile = path.relative(workspaceFolder.uri.fsPath, item.file);
               items.push(item);
             }
             data = items;

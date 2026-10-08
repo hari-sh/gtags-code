@@ -21,7 +21,7 @@ const providerConfig = {
   externalTimeout: config.get('externalTimeout') || 5000
 };
 
-const tagsProvider = TagsProviderFactory.create(providerConfig);
+const tagsProvider = TagsProviderFactory.create(providerConfig, channel);
 
 async function storeTags() {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];

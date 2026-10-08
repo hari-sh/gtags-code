@@ -369,7 +369,7 @@ function createTab(symbolName, mode = 'callers') {
         const refEl = document.createElement('div');
         refEl.className = 'reference-item';
         refEl.innerHTML = `
-          <span class="reference-file">${ref.file}:${ref.line}</span>
+          <span class="reference-file">${ref.displayFile || ref.file}:${ref.line}</span>
           <div class="reference-code">${ref.code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
         `;
         refEl.addEventListener('click', () => {

@@ -2,7 +2,7 @@ const GtagsProvider = require('./gtagsProvider');
 const { ExternalProvider } = require('./externalProvider');
 
 class TagsProviderFactory {
-    static create(config) {
+    static create(config, channel) {
         const engine = config.engine || 'gtags';
 
         switch (engine) {
@@ -16,7 +16,8 @@ class TagsProviderFactory {
                     indexCommand: config.externalIndexCommand,
                     indexArgs: config.externalIndexArgs,
                     env: config.externalEnv,
-                    timeout: config.externalTimeout
+                    timeout: config.externalTimeout,
+                    channel: channel
                 });
 
             case 'gtags':
