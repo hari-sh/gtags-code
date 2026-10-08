@@ -18,16 +18,24 @@ async function getSourceFiles(dir, root, out = []) {
 }
 
 
-async function parseToTagsFile(root, channel, provider) {
+async function prepareProvider(root, channel, provider) {
     channel.appendLine('Finding Number of files to be indexed...');
     const files = await getSourceFiles(root, root);
     channel.appendLine(`Found ${files.length} source files(s) to index...`);
     
-    for await (const message of provider.generateTags(root, files)) {
-        channel.appendLine(message);
+    if (provider.waitUntilReady) {
+        channel.appendLine('Waiting for external engine to become ready...');
+        await provider.waitUntilReady(root);
+        channel.appendLine('External engine is ready.');
+    } else {
+        for await (const message of provider.generateTags(root, files)) {
+            channel.appendLine(message);
+        }
     }
-    
-    channel.appendLine('Indexing structure types and functions...');
+}
+
+async function parseToTagsFile(root, channel, provider) {
+    channel.appendLine('External indexing is complete. Importing structure types and functions into Tags DB...');
     const idWriter = new BatchWriter(200000, (processed) => {
         channel.appendLine(`${processed} IDs assigned...`);
     });
@@ -74,6 +82,7 @@ async function parseAndStoreTags(channel, root, provider) {
     const start = performance.now();
     if (provider.clearCaches) await provider.clearCaches();
     await cleanWorkspace(root, provider.workspaceFilesToRemove, channel);
+    await prepareProvider(root, channel, provider);
     await cleanDB();
     await openDB();
     await parseToTagsFile(root, channel, provider);

@@ -13,6 +13,8 @@ class ExternalProvider {
         this.indexCommand = indexCommand.executable;
         this.indexArgs = indexCommand.args;
         this.timeout = options.timeout || 5000;
+        this.readyTimeout = options.readyTimeout || 600000;
+        this.concurrency = Math.max(1, Math.min(128, options.concurrency || 32));
         this.environment = Object.assign({}, process.env, options.env || {});
         this.channel = options.channel;
         
@@ -178,14 +180,80 @@ class ExternalProvider {
         return this._sendRequest(method, params);
     }
     
+    _isReadinessError(error) {
+        const message = String(error && error.message ? error.message : error).toLowerCase();
+        return message.includes('not ready') ||
+               message.includes('retry in') ||
+               message.includes('try again') ||
+               message.includes('warming up') ||
+               message.includes('initializing') ||
+               message.includes('indexing in progress') ||
+               message.includes('ingestion in progress') ||
+               message.includes('temporarily unavailable') ||
+               message.includes('service unavailable') ||
+               message.includes('external engine request timeout');
+    }
+
     async sendRequestWithRetry(method, params, attempts = 5) {
-        for (let attempt = 0; attempt < attempts; attempt++) {
+        const startedAt = Date.now();
+        let attempt = 0;
+        let waiting = false;
+        
+        while (true) {
             try {
-                return await this._sendRequest(method, params);
+                const result = await this._sendRequest(method, params);
+                if (waiting && this.channel) {
+                    this.channel.appendLine('[External Engine] Ready.');
+                }
+                return result;
             } catch (error) {
-                if (!this.process || attempt === attempts - 1) throw error;
-                await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+                if (!this.process || attempt >= attempts - 1) throw error;
+                
+                if (!this._isReadinessError(error)) {
+                    await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+                    attempt++;
+                    continue;
+                }
+                
+                const elapsed = Date.now() - startedAt;
+                if (elapsed > this.readyTimeout) {
+                    throw new Error(`External engine did not become ready within ${Math.round(this.readyTimeout / 1000)} seconds: ${error.message}`);
+                }
+                
+                if (!waiting && this.channel) {
+                    this.channel.appendLine(`[External Engine] ${error.message}. Waiting until it is ready...`);
+                }
+                waiting = true;
+                
+                const remaining = this.readyTimeout - elapsed;
+                const delay = Math.min(250 * (2 ** Math.min(attempt, 14)), 2000, remaining);
+                attempt++;
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
+        }
+    }
+
+    async waitUntilReady(workspaceRoot) {
+        await this._ensureStarted(workspaceRoot);
+
+        if (this.protocol === 'direct') {
+            await this.sendRequestWithRetry('search_components', {});
+            return;
+        }
+
+        const fileListTool = this._fileListTool();
+        if (fileListTool) {
+            await this.callToolValue(fileListTool, this._argumentsFor(fileListTool, '', { limit: 1 }));
+            return;
+        }
+
+        const searchTool = this._searchTool();
+        if (searchTool) {
+            await this.callToolValue(searchTool, this._argumentsFor(
+                searchTool, 
+                '__gtags_code_readiness_probe__',
+                { contentSearch: false, verbosity: 'names_only', limit: 1 }
+            ));
         }
     }
 
@@ -401,7 +469,7 @@ class ExternalProvider {
     async *streamSymbols(workspaceRoot) {
         await this._ensureStarted(workspaceRoot);
         if (this.protocol === 'direct') {
-            const response = await this.sendRequest('search_components', {});
+            const response = await this.sendRequestWithRetry('search_components', {});
             if (response && Array.isArray(response.items)) {
                 for (const item of response.items) {
                     const name = typeof item === 'string' ? item : item.name || item.symbol;
@@ -416,34 +484,79 @@ class ExternalProvider {
         const fileOverviewTool = this._fileOverviewTool();
         
         if (fileListTool && fileOverviewTool) {
-            const listed = await this.callToolValue(fileListTool, this._argumentsFor(fileListTool, '', { limit: 10000 }));
-            const files = Array.isArray(listed) ? listed : listed.files || listed.items || [];
+            const listProperties = this._toolProperties(fileListTool);
+            const supportsPagination = Boolean(listProperties.limit && listProperties.offset);
+            const pageSize = supportsPagination ? 1000 : undefined;
+            let fileOffset = 0;
+            let totalFiles = null;
+            let processedFiles = 0;
+            let nextProgress = 500;
+            
             const fileProperty = ['file_node', 'file', 'path', 'file_name']
                 .find(key => this._toolProperties(fileOverviewTool)[key]);
             
-            for (let offset = 0; offset < files.length; offset += 8) {
-                const batch = files.slice(offset, offset + 8);
-                const overviewPages = await Promise.all(batch.map(file => {
-                    const fileName = typeof file === 'string' ? file : file.file || file.path || file.name;
-                    return this.callToolPages(fileOverviewTool, { [fileProperty]: fileName });
-                }));
-                for (const pages of overviewPages) {
-                    for (const page of pages) this._collectNames(page, seen);
+            while (true) {
+                const listArguments = {};
+                if (listProperties.limit) listArguments.limit = pageSize || 10000;
+                if (listProperties.offset) listArguments.offset = fileOffset;
+                
+                const listed = await this.callToolValue(fileListTool, listArguments);
+                const files = Array.isArray(listed) ? listed : listed.files || listed.items || [];
+                
+                if (totalFiles === null) {
+                    const reportedTotal = Number(listed.total || listed.total_files || listed.count);
+                    totalFiles = Number.isFinite(reportedTotal) ? reportedTotal : files.length;
+                    if (this.channel) {
+                        this.channel.appendLine(`[External Engine] Exporting symbols from ${totalFiles} indexed files ` +
+                            `with concurrency ${this.concurrency}...`);
+                    }
+                }
+                
+                for (let offset = 0; offset < files.length; offset += this.concurrency) {
+                    const batch = files.slice(offset, offset + this.concurrency);
+                    const overviewPages = await Promise.all(batch.map(file => {
+                        const fileName = typeof file === 'string' ? file : file.file || file.path || file.name;
+                        return this.callToolPages(fileOverviewTool, { [fileProperty]: fileName });
+                    }));
+                    
+                    const batchNames = new Set();
+                    for (const pages of overviewPages) {
+                        for (const page of pages) this._collectNames(page, batchNames);
+                    }
+                    
+                    for (const name of batchNames) {
+                        if (!seen.has(name)) {
+                            seen.add(name);
+                            yield name;
+                        }
+                    }
+                    
+                    processedFiles += batch.length;
+                    if (processedFiles >= nextProgress || processedFiles === totalFiles) {
+                        if (this.channel) {
+                            this.channel.appendLine(`[External Engine] ${processedFiles}/${totalFiles} files processed for tags...`);
+                        }
+                        nextProgress += 500;
+                    }
+                }
+                
+                fileOffset += files.length;
+                if (!supportsPagination || files.length === 0 || fileOffset >= totalFiles) {
+                    break;
                 }
             }
         } else {
-            if (seen.size === 0) {
-                const tool = this._searchTool();
-                if (!tool) throw new Error('External engine does not advertise a symbol search tool.');
-                const items = await this._callTool(workspaceRoot, tool, this._argumentsFor(tool, '.*', { contentSearch: false, verbosity: 'names_only' }));
-                for (const item of items) {
-                    const name = typeof item === 'string' ? item : item.name || item.symbol || item.tagName;
-                    if (name) seen.add(name);
+            const tool = this._searchTool();
+            if (!tool) throw new Error('External engine does not advertise a symbol search tool.');
+            const items = await this._callTool(workspaceRoot, tool, this._argumentsFor(tool, '.*', { contentSearch: false, verbosity: 'names_only' }));
+            for (const item of items) {
+                const name = typeof item === 'string' ? item : item.name || item.symbol || item.tagName;
+                if (name && !seen.has(name)) {
+                    seen.add(name);
+                    yield name;
                 }
             }
         }
-        
-        for (const name of seen) yield name;
     }
 
     async *queryDefinitions(workspaceRoot, key) {
