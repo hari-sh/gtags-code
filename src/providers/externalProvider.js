@@ -14,6 +14,7 @@ class ExternalProvider {
         this.indexArgs = indexCommand.args;
         this.timeout = options.timeout || 5000;
         this.environment = Object.assign({}, process.env, options.env || {});
+        this.channel = options.channel;
         
         this.startPromise = null;
         this.pendingRequests = new Map();
@@ -91,7 +92,10 @@ class ExternalProvider {
 
         child.stderr.on('data', data => {
             const message = data.toString().trim();
-            if (message) console.error(`gtags-code external engine: ${message}`);
+            if (message) {
+                console.error(`gtags-code external engine: ${message}`);
+                if (this.channel) this.channel.appendLine(`[External Engine] ${message}`);
+            }
         });
 
         const rl = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
@@ -375,7 +379,14 @@ class ExternalProvider {
         });
         
         let errorOutput = '';
-        proc.stderr.on('data', data => { errorOutput += data.toString(); });
+        proc.stderr.on('data', data => { 
+            const chunk = data.toString();
+            errorOutput += chunk; 
+            if (this.channel) this.channel.append(chunk);
+        });
+        proc.stdout.on('data', data => {
+            if (this.channel) this.channel.append(data.toString());
+        });
         
         await new Promise((resolve, reject) => {
             proc.on('exit', code => {
