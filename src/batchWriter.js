@@ -7,26 +7,38 @@ class BatchWriter {
         this.ops = new Array(batchSize);
         this.index = 0;
         this.processed = 0;
+        this.pendingWrite = Promise.resolve();
     }
 
     async add(op) {
         this.ops[this.index++] = op;
         if (this.index >= this.batchSize) {
-            await this.flush();
+            const previousWrite = this.pendingWrite;
+            this._queueFlush();
+            await previousWrite;
         }
     }
 
-    async flush() {
-        if (this.index > 0) {
-            const flushOps = this.index === this.batchSize ? this.ops : this.ops.slice(0, this.index);
+    _queueFlush() {
+        if (this.index === 0) return;
+        
+        const operationCount = this.index;
+        const flushOps = this.index === this.batchSize ? this.ops : this.ops.slice(0, operationCount);
+        this.ops = new Array(this.batchSize);
+        this.index = 0;
+        
+        this.pendingWrite = this.pendingWrite.then(async () => {
             await batchWriteIntoDB(flushOps);
-            this.processed += this.index;
+            this.processed += operationCount;
             if (this.onFlush) {
                 this.onFlush(this.processed);
             }
-            this.ops = new Array(this.batchSize);
-            this.index = 0;
-        }
+        });
+    }
+
+    async flush() {
+        this._queueFlush();
+        await this.pendingWrite;
     }
 }
 

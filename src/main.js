@@ -18,7 +18,9 @@ const providerConfig = {
   externalIndexCommand: config.get('externalIndexCommand') || '',
   externalIndexArgs: config.get('externalIndexArgs') || [],
   externalEnv: config.get('externalEnv') || {},
-  externalTimeout: config.get('externalTimeout') || 5000
+  externalTimeout: config.get('externalTimeout') || 5000,
+  externalReadyTimeout: config.get('externalReadyTimeout') || 600000,
+  externalConcurrency: config.get('externalConcurrency') || 32
 };
 
 const tagsProvider = TagsProviderFactory.create(providerConfig, channel);
