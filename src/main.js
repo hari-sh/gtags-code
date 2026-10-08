@@ -13,8 +13,11 @@ const providerConfig = {
   engine: config.get('engine') || 'gtags',
   globalCmd: config.get('globalCmd') || 'global',
   gtagsCmd: config.get('gtagsCmd') || 'gtags',
-  externalCommand: config.get('externalCommand') || [],
-  externalIndexCommand: config.get('externalIndexCommand') || [],
+  externalCommand: config.get('externalCommand') || '',
+  externalArgs: config.get('externalArgs') || [],
+  externalIndexCommand: config.get('externalIndexCommand') || '',
+  externalIndexArgs: config.get('externalIndexArgs') || [],
+  externalEnv: config.get('externalEnv') || {},
   externalTimeout: config.get('externalTimeout') || 5000
 };
 

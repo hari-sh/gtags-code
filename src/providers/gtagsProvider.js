@@ -108,7 +108,7 @@ class GtagsProvider {
     async *queryDefinitions(workspaceRoot, key) {
         if (!key || !key.trim()) return;
 
-        for await (const tag of this.runGlobal(['-xd', key.trim()], {
+        for await (const tag of this._runGlobal(['-xd', key.trim()], {
             cwd: workspaceRoot,
             reflectionError: false
         })) {
@@ -130,7 +130,7 @@ class GtagsProvider {
         const target = symbol.trim();
         const seenLines = new Set();
 
-        for await (const tag of this.runGlobal(['-rx', target], {
+        for await (const tag of this._runGlobal(['-rx', target], {
             cwd: workspaceRoot,
             reflectionError: false
         })) {
@@ -167,7 +167,7 @@ class GtagsProvider {
                 reflectionError: false
             })) {
                 if (!this._isFunctionTag(tag)) continue;
-                const range = this._findFunctionRange(workspaceRoot, tag.file, tag.line);
+                const range = this._getFunctionRangeForTag(workspaceRoot, tag);
                 if (range) functions.push({ ...tag, ...range });
             }
 
@@ -185,15 +185,17 @@ class GtagsProvider {
 
     async getCallers(workspaceRoot, symbol) {
         if (!await this._isFunctionSymbol(workspaceRoot, symbol)) {
-            throw new Error(`${symbol.trim()} is not a function`);
+            const target = symbol.trim();
+            throw new Error(`${target} is not a function`);
         }
 
-        const cacheKey = `${workspaceRoot}:${symbol}`;
+        const target = symbol.trim();
+        const cacheKey = `${workspaceRoot}:${target}`;
         if (this.callGraphCache.has(cacheKey)) {
             return this.callGraphCache.get(cacheKey);
         }
 
-        const callersPromise = this._getCallersUncached(workspaceRoot, symbol);
+        const callersPromise = this._getCallersUncached(workspaceRoot, target);
 
         this.callGraphCache.set(cacheKey, callersPromise);
         try {
@@ -231,13 +233,13 @@ class GtagsProvider {
 
     _filterUniqueCallers(callers, symbol) {
         const withoutSelf = callers.filter(caller => caller.name !== symbol);
-        const nameCounts = new Map();
-
-        for (const caller of withoutSelf) {
-            nameCounts.set(caller.name, (nameCounts.get(caller.name) || 0) + 1);
-        }
-
-        return withoutSelf.filter(caller => nameCounts.get(caller.name) === 1);
+        const seen = new Set();
+        return withoutSelf.filter(caller => {
+            const key = `${caller.name}:${caller.file}:${caller.line}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
     }
 
     async _isCallableReference(workspaceRoot, symbol) {
@@ -265,8 +267,7 @@ class GtagsProvider {
             reflectionError: false
         })) {
             if (!this._isFunctionTag(tag)) continue;
-            const functions = await this._getFunctionsInFile(workspaceRoot, tag.file);
-            if (functions.some(func => func.symbol === symbol.trim())) return true;
+            if (this._getFunctionRangeForTag(workspaceRoot, tag)) return true;
         }
 
         return false;
@@ -337,6 +338,33 @@ class GtagsProvider {
         }
 
         return null;
+    }
+
+    _getFunctionRangeForTag(workspaceRoot, tag) {
+        if (!tag || !tag.symbol || !tag.file || !Number.isFinite(tag.line)) return null;
+        const range = this._findFunctionRange(workspaceRoot, tag.file, tag.line);
+        if (!range) return null;
+
+        const fullPath = path.isAbsolute(tag.file) ? tag.file : path.join(workspaceRoot, tag.file);
+        let lines;
+        try {
+            lines = fssync.readFileSync(fullPath, 'utf8').split(/\r?\n/);
+        } catch {
+            return null;
+        }
+
+        const signature = lines
+            .slice(Math.max(0, range.startLine - 1), range.bodyStartLine)
+            .map(line => this._stripLineComment(line))
+            .join('\n');
+        if (/[;{}]/.test(this._stripLineComment(lines[range.startLine - 1 - 1] || ''))) {
+            // handle cases
+        }
+        if (/^\s*#/.test(signature)) return null;
+        const functionPattern = new RegExp(
+            `(?:^|[^\\w~])${this._escapeRegExp(tag.symbol)}\\s*\\(`
+        );
+        return functionPattern.test(signature) ? range : null;
     }
 
     _stripLineComment(line) {
