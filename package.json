@@ -4,7 +4,7 @@
   "icon": "gtags.png",
   "description": "gtags-code is a Visual Studio Code extension that integrates GNU Global (gtags) for efficient code navigation and symbol searching within your projects.",
   "publisher": "harikalyan",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -33,37 +33,56 @@
         },
         "gtags-code.engine": {
           "type": "string",
-          "enum": ["gtags", "external"],
+          "enum": [
+            "gtags",
+            "external"
+          ],
           "default": "gtags",
           "description": "Selects the code navigation engine."
         },
         "gtags-code.externalCommand": {
-          "type": ["string", "array"],
-          "items": { "type": "string" },
+          "type": [
+            "string",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
           "default": "",
           "description": "External MCP executable. Arrays using the legacy [executable, ...arguments] form are also supported."
         },
         "gtags-code.externalArgs": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "description": "Arguments passed to the external MCP executable. Use ${workspaceFolder} for the workspace path."
         },
         "gtags-code.externalIndexCommand": {
-          "type": ["string", "array"],
-          "items": { "type": "string" },
+          "type": [
+            "string",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
           "default": "",
           "description": "Optional external indexing executable. Arrays using the legacy [executable, ...arguments] form are also supported."
         },
         "gtags-code.externalIndexArgs": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "description": "Arguments passed to the external indexing executable. Use ${workspaceFolder} for the workspace path."
         },
         "gtags-code.externalEnv": {
           "type": "object",
-          "additionalProperties": { "type": "string" },
+          "additionalProperties": {
+            "type": "string"
+          },
           "default": {},
           "description": "Environment variables passed to external processes."
         },
