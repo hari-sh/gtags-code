@@ -1,63 +1,544 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Markmap</title>
-  <link rel="stylesheet" href="treeview.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gtags Code View</title>
+<link rel="stylesheet" href="treeview.css" />
+<script src="d3.js"></script>
+<script src="d3-flextree.js"></script>
+<script src="treeview.js"></script>
+<style>
+  :root {
+    --bg: var(--vscode-panel-background, var(--vscode-editor-background, #1e1e1e));
+    --panel: var(--vscode-sideBar-background, #252526);
+    --panel-hover: var(--vscode-list-hoverBackground, #2a2d2e);
+    --border: var(--vscode-panel-border, #3a3a3a);
+    --text: var(--vscode-editor-foreground, #cccccc);
+    --muted: var(--vscode-descriptionForeground, #858585);
+    --accent: var(--vscode-button-background, #007acc);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .app {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+  }
+
+  /* Left vertical tab bar */
+  .sidebar {
+    width: 180px;
+    min-width: 80px;
+    height: 100%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 4px 0;
+  }
+
+  .sidebar-resizer {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 3px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 10;
+  }
+
+  .sidebar-resizer:hover,
+  .sidebar-resizer.dragging {
+    background: var(--accent);
+    opacity: 0.55;
+  }
+
+  .super-tabs {
+    display: flex;
+    width: 100%;
+    border-bottom: 1px solid var(--border);
+  }
+  .super-tab {
+    flex: 1;
+    text-align: center;
+    padding: 8px 0;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+  }
+  .super-tab.active {
+    color: var(--text);
+    border-bottom: 2px solid var(--accent);
+  }
+  .tabs {
+    width: 100%;
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tab {
+    position: relative;
+    width: 100%;
+    min-height: 42px;
+    padding: 0 20px 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s, color 0.12s;
+  }
+
+  .tab:hover {
+    background: var(--panel-hover);
+    color: var(--text);
+  }
+
+  .tab.active {
+    color: var(--vscode-list-activeSelectionForeground, #ffffff);
+    background: var(--vscode-list-activeSelectionBackground, #303031);
+  }
+
+  .tab.active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--accent);
+  }
+
+  .tab-label {
+    font-size: 11px;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  .close-tab {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .tab:hover .close-tab {
+    display: flex;
+  }
+
+  .close-tab:hover {
+    background: var(--vscode-button-secondaryHoverBackground, #444444);
+    color: var(--vscode-button-secondaryForeground, #ffffff);
+  }
+
+  /* Workspace area */
+  .workspace {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+
+  .tab-container {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    background: var(--bg);
+  }
+
+  .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  
+  .reference-item {
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 13px;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .reference-item:hover {
+    background: var(--panel-hover);
+  }
+  .reference-file {
+    color: var(--accent);
+    margin-bottom: 4px;
+    display: block;
+    font-weight: bold;
+  }
+  .reference-code {
+    padding-left: 16px;
+    white-space: pre;
+    overflow-x: auto;
+    color: var(--text);
+  }
+  .references-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 0;
+    overflow-y: auto;
+  }
+</style>
 </head>
 
 <body>
-  <svg id="mindmap"></svg>
-  <script src="d3.js"></script>
-  <script src="d3-flextree.js"></script>
-  <script src="treeview.js"></script>
-  <script>
-  const vscode = acquireVsCodeApi();
-  const pending = new Map();
+<div class="app">
+  <aside id="sidebar" class="sidebar">
+    <div id="sidebarResizer" class="sidebar-resizer" title="Drag to resize"></div>
+    <div class="super-tabs">
+      <div class="super-tab active" data-mode="callers">Callers</div>
+      <div class="super-tab" data-mode="references">References</div>
+    </div>
+    <div id="tabs" class="tabs"></div>
+  </aside>
 
-  window.getTags = function (tagName) {
-    return new Promise(resolve => {
-      const id = Math.random().toString(36);
+  <main class="workspace">
 
-      pending.set(id, resolve);
+    <div id="plotContainer" class="tab-container"></div>
+  </main>
+</div>
 
-      vscode.postMessage({
-        type: 'getTags',
-        id,
-        tagName
-      });
-    });
-  };
+<script>
+const vscode = acquireVsCodeApi();
 
-  window.postFileData = function (tagName) {
-      const id = Math.random().toString(36);
-      alert(id);
-      vscode.postMessage({
-        type: 'postFileInfo',
-        id,
-        tagName
-      });
-  };
+const items = [];
+let activeId = null;
+const lastActiveId = { callers: null, references: null };
 
-  window.addEventListener('message', e => {
-    const msg = e.data;
+const sidebarEl = document.getElementById("sidebar");
+const sidebarResizerEl = document.getElementById("sidebarResizer");
+const tabsEl = document.getElementById("tabs");
 
-    if (msg.type === 'getTags:response') {
-      const resolve = pending.get(msg.id);
-      pending.delete(msg.id);
-      resolve(msg.data);
+const plotContainerEl = document.getElementById("plotContainer");
+
+const pending = new Map();
+let currentSuperTab = 'callers';
+
+document.querySelectorAll('.super-tab').forEach(el => {
+  el.addEventListener('click', e => {
+    document.querySelectorAll('.super-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    currentSuperTab = el.dataset.mode;
+    
+    activeId = lastActiveId[currentSuperTab];
+    const visibleItems = items.filter(i => i.mode === currentSuperTab);
+    if (!activeId || !visibleItems.find(i => i.id === activeId)) {
+      activeId = visibleItems.length > 0 ? visibleItems[0].id : null;
     }
+    if (activeId) lastActiveId[currentSuperTab] = activeId;
+    renderTabs();
+    renderContent();
   });
-</script>
-  <script>
-    window.mm?.destroy();
-    window.mm = window.markmap.Markmap.create(
-      'svg#mindmap',
+});
+
+window.addEventListener('message', event => {
+  const message = event.data;
+  switch (message.type) {
+    case 'addTab':
+      createTab(message.symbol, message.mode || 'callers');
+      break;
+    case 'getTags:response':
+      const resolve = pending.get(message.id);
+      if (resolve) {
+        pending.delete(message.id);
+        resolve(message.data);
+      }
+      break;
+  }
+});
+
+vscode.postMessage({ type: 'webviewReady' });
+
+function getTags(tagName, mode = 'callers') {
+  return new Promise(resolve => {
+    const id = Math.random().toString(36);
+    pending.set(id, resolve);
+    vscode.postMessage({
+      type: 'getTags',
+      id,
+      tagName,
+      mode
+    });
+  });
+}
+
+window.postFileData = function (tagData) {
+  vscode.postMessage({
+    type: 'postFileInfo',
+    data: tagData
+  });
+};
+
+function createTab(symbolName, mode = 'callers') {
+  const item = {
+    id: crypto.randomUUID(),
+    name: symbolName,
+    mode: mode
+  };
+
+  const container = document.createElement('div');
+  container.style.width = '100%';
+  container.style.height = '100%';
+  container.style.display = 'block'; 
+  container.id = `container-${item.id}`;
+  
+  if (mode === 'callers') {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = `mindmap-${item.id}`;
+    svg.style.width = '100%';
+    svg.style.height = '100%';
+    container.appendChild(svg);
+  } else {
+    container.className = 'references-container';
+    container.innerHTML = '<div class="empty-state">Loading references...</div>';
+  }
+  
+  plotContainerEl.appendChild(container);
+  items.push(item);
+
+  if (currentSuperTab !== mode) {
+    document.querySelector(`.super-tab[data-mode="${mode}"]`).click();
+  } else {
+    selectItem(item.id);
+  }
+
+  item.container = container;
+  
+  if (mode === 'callers') {
+    item.mm = window.markmap.Markmap.create(
+      `svg#mindmap-${item.id}`,
       window.getTags,
       window.postFileData,
-      "__SYMBOL__"
+      item.name
     );
-  </script>
+  } else {
+    getTags(item.name, mode).then(data => {
+      container.innerHTML = '';
+      if (!data || data.length === 0) {
+        container.innerHTML = '<div class="empty-state">No references found</div>';
+        return;
+      }
+      data.forEach(ref => {
+        const refEl = document.createElement('div');
+        refEl.className = 'reference-item';
+        refEl.innerHTML = `
+          <span class="reference-file">${ref.file}:${ref.line}</span>
+          <div class="reference-code">${ref.code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+        `;
+        refEl.addEventListener('click', () => {
+          window.postFileData({ data: ref.code, line: ref.line, file: ref.file });
+        });
+        container.appendChild(refEl);
+      });
+    });
+  }
+}
+
+function selectItem(id) {
+  activeId = id;
+  const item = items.find(i => i.id === id);
+  if (item) {
+    lastActiveId[item.mode] = id;
+  }
+  renderTabs();
+  renderContent();
+}
+
+function closeItem(id) {
+  const index = items.findIndex(p => p.id === id);
+  if (index === -1) return;
+
+  const item = items[index];
+  if (item.mm && typeof item.mm.destroy === 'function') {
+    item.mm.destroy();
+  }
+  if (item.container && item.container.parentNode) {
+    item.container.parentNode.removeChild(item.container);
+  }
+
+  items.splice(index, 1);
+
+  if (items.length === 0) {
+    activeId = null;
+    lastActiveId.callers = null;
+    lastActiveId.references = null;
+    plotContainerEl.innerHTML = `<div class='empty-state'>Select a symbol to view ${currentSuperTab}</div>`;
+    renderTabs();
+    return;
+  }
+
+  const visibleItems = items.filter(i => i.mode === currentSuperTab);
+  if (visibleItems.length === 0) {
+    activeId = null;
+    lastActiveId[currentSuperTab] = null;
+  } else if (activeId === id) {
+    activeId = visibleItems[visibleItems.length - 1].id;
+    lastActiveId[currentSuperTab] = activeId;
+  }
+
+  renderTabs();
+  renderContent();
+}
+
+function renderTabs() {
+  tabsEl.innerHTML = "";
+  
+  const visibleItems = items.filter(i => i.mode === currentSuperTab);
+
+  for (const item of visibleItems) {
+    const tab = document.createElement("div");
+    tab.className = "tab" + (item.id === activeId ? " active" : "");
+    tab.title = item.name;
+
+    const label = document.createElement("span");
+    label.className = "tab-label";
+    label.textContent = item.name;
+
+    const close = document.createElement("button");
+    close.className = "close-tab";
+    close.type = "button";
+    close.title = "Close tab";
+    close.innerHTML = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+
+    close.addEventListener("click", event => {
+      event.stopPropagation();
+      closeItem(item.id);
+    });
+
+    tab.appendChild(label);
+    tab.appendChild(close);
+    tab.addEventListener("click", () => selectItem(item.id));
+    tabsEl.appendChild(tab);
+  }
+}
+
+function renderContent() {
+  const activeItem = items.find(p => p.id === activeId);
+  
+  if (!activeItem) {
+    document.querySelectorAll('.empty-state').forEach(el => el.style.display = 'flex');
+    return;
+  }
+
+  const emptyStateEl = plotContainerEl.querySelector('.empty-state');
+  if (emptyStateEl) emptyStateEl.style.display = 'none';
+
+  for (const item of items) {
+    if (item.container) {
+      item.container.style.display = item.id === activeId ? "block" : "none";
+    }
+  }
+}
+
+function getContentMaxWidth() {
+  const labels = [...tabsEl.querySelectorAll(".tab-label")];
+
+  if (labels.length === 0) {
+    return 180;
+  }
+
+  const widest = Math.max(
+    ...labels.map(label => {
+      const clone = label.cloneNode(true);
+      clone.style.position = "absolute";
+      clone.style.visibility = "hidden";
+      clone.style.width = "max-content";
+      clone.style.maxWidth = "none";
+      document.body.appendChild(clone);
+      const width = clone.getBoundingClientRect().width;
+      clone.remove();
+      return width;
+    })
+  );
+
+  return Math.max(180, Math.ceil(widest + 52));
+}
+
+let resizing = false;
+
+sidebarResizerEl.addEventListener("pointerdown", event => {
+  resizing = true;
+  sidebarResizerEl.classList.add("dragging");
+  sidebarResizerEl.setPointerCapture(event.pointerId);
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
+});
+
+sidebarResizerEl.addEventListener("pointermove", event => {
+  if (!resizing) return;
+
+  const maxWidth = getContentMaxWidth();
+  const newWidth = Math.max(80, Math.min(maxWidth, event.clientX));
+  sidebarEl.style.width = `${newWidth}px`;
+});
+
+sidebarResizerEl.addEventListener("pointerup", event => {
+  resizing = false;
+  sidebarResizerEl.classList.remove("dragging");
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
+  sidebarResizerEl.releasePointerCapture(event.pointerId);
+});
+
+sidebarResizerEl.addEventListener("pointercancel", () => {
+  resizing = false;
+  sidebarResizerEl.classList.remove("dragging");
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
+});
+
+// Initialize empty state
+plotContainerEl.innerHTML = `<div class='empty-state'>Select a symbol to view callers</div>`;
+
+</script>
 </body>
 </html>

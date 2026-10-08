@@ -37,6 +37,25 @@ And keep these two properties
   "gtags-code.globalCmd": <path_to_global_executable>
 ```
 
+The navigation engine can be selected in workspace or user settings. The default is `gtags`.
+
+### External Engine
+
+`gtags-code` can use a generic stdin/stdout JSON-RPC executable. This is configured via:
+```json
+{
+  "gtags-code.engine": "external",
+  "gtags-code.externalCommand": "/path/to/executable",
+  "gtags-code.externalArgs": ["--workspace", "${workspaceFolder}"],
+  "gtags-code.externalIndexCommand": "/path/to/executable",
+  "gtags-code.externalIndexArgs": ["--index", "${workspaceFolder}"],
+  "gtags-code.externalEnv": {
+    "OPTIONAL_VARIABLE": "value"
+  }
+}
+```
+The server must advertise tools for symbol/content search and caller lookup. Definitions, references, callers, and symbol indexing are adapted from the advertised tool schemas. The legacy array form for command settings remains supported.
+
 ## Usage
 
 ### 1. Store Tags (Build the Tags DB)
@@ -55,12 +74,8 @@ This step is **required** before using any search or navigation commands.
 Finding Number of files to be indexed...
 Found 142 source file(s) to index...
 Running Gtags...
-Running Ctags...
 Indexing structure types and functions...
 142/142 files processed by gtags...
-142/142 files processed by ctags...
-Finalizing variable indexing...
-Variable indexing completed...
 All structure types and functions are indexed...
 Creating Tags DataBase...
 Post processing symbols...
@@ -118,7 +133,7 @@ This opens a graphical panel displaying the call graph using D3.js, showing all 
 | `Gtags: Store Tags` | Parses `tags` file and creates `tagsdb` (LevelDB) |
 | `Gtags: Jump to Tag` | Jump to the selected tag definition |
 | `Gtags: Search Tag` | Search symbols interactively via Quick Pick |
-| `Gtags: Get References` | Get all references for symbols, functions, and member expressions (`obj->field`, `obj.field`) |
+| `Gtags: Get References` | Find ordinary references to the selected symbol |
 | `Gtags: Get Function Callers` | Display function callers in a graphical call graph |
 
 ## Implementation Details
