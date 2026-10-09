@@ -14,6 +14,8 @@ class ExternalProvider {
         this.indexArgs = indexCommand.args;
         this.timeout = options.timeout || 5000;
         this.readyTimeout = options.readyTimeout || 600000;
+        this.readinessPollInterval = options.readinessPollInterval || 5000;
+        this.requiresSourceFiles = false;
         this.concurrency = Math.max(1, Math.min(128, options.concurrency || 32));
         this.environment = Object.assign({}, process.env, options.env || {});
         this.channel = options.channel;
@@ -49,7 +51,6 @@ class ExternalProvider {
         this.workspaceRoot = null;
         if (processToStop) processToStop.kill();
         for (const [, request] of this.pendingRequests) {
-            clearTimeout(request.timeoutId);
             request.reject(error);
         }
         this.pendingRequests.clear();
@@ -88,7 +89,9 @@ class ExternalProvider {
         this.workspaceRoot = workspaceRoot;
 
         child.on('error', (err) => {
-            if (vscode && vscode.window) vscode.window.showErrorMessage(`External engine failed to start: ${err.message}`);
+            const message = `External engine failed to start: ${err.message}`;
+            console.error(`gtags-code: ${message}`);
+            if (this.channel) this.channel.appendLine(`[External Engine] ${message}`);
             this._stopProcess(err);
         });
 
@@ -143,7 +146,6 @@ class ExternalProvider {
     _handleMessage(message) {
         if (message.id === undefined || !this.pendingRequests.has(message.id)) return;
         const request = this.pendingRequests.get(message.id);
-        clearTimeout(request.timeoutId);
         this.pendingRequests.delete(message.id);
         if (message.error) {
             request.reject(new Error(message.error.message || 'Unknown external engine error'));
@@ -164,12 +166,7 @@ class ExternalProvider {
 
         const id = this.nextMessageId++;
         const promise = new Promise((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
-                this.pendingRequests.delete(id);
-                reject(new Error(`External engine request timeout for method: ${method}`));
-            }, this.timeout);
-
-            this.pendingRequests.set(id, { resolve, reject, timeoutId });
+            this.pendingRequests.set(id, { resolve, reject });
         });
 
         this.process.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
@@ -191,42 +188,35 @@ class ExternalProvider {
                message.includes('ingestion in progress') ||
                message.includes('temporarily unavailable') ||
                message.includes('service unavailable') ||
-               message.includes('external engine request timeout');
+               message.includes('timed out') ||
+               message.includes('timeout');
     }
 
-    async sendRequestWithRetry(method, params, attempts = 5) {
-        const startedAt = Date.now();
+    async sendRequestWithRetry(method, params, options = {}) {
+        const attempts = options.attempts || 5;
+        const waitUntilReady = options.waitUntilReady === true;
+        
         let attempt = 0;
-        let waiting = false;
         
         while (true) {
             try {
                 const result = await this._sendRequest(method, params);
-                if (waiting && this.channel) {
-                    this.channel.appendLine('[External Engine] Ready.');
-                }
                 return result;
             } catch (error) {
-                if (!this.process || attempt >= attempts - 1) throw error;
-                
-                if (!this._isReadinessError(error)) {
+                if (!this.process) throw error;
+                const readinessError = this._isReadinessError(error);
+                if (!readinessError) {
+                    if (attempt >= attempts - 1) throw error;
                     await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
                     attempt++;
                     continue;
                 }
                 
-                const elapsed = Date.now() - startedAt;
-                if (elapsed > this.readyTimeout) {
-                    throw new Error(`External engine did not become ready within ${Math.round(this.readyTimeout / 1000)} seconds: ${error.message}`);
-                }
+                if (!waitUntilReady && attempt >= attempts - 1) throw error;
                 
-                if (!waiting && this.channel) {
-                    this.channel.appendLine(`[External Engine] ${error.message}. Waiting until it is ready...`);
-                }
-                waiting = true;
-                
-                const remaining = this.readyTimeout - elapsed;
-                const delay = Math.min(250 * (2 ** Math.min(attempt, 14)), 2000, remaining);
+                const delay = waitUntilReady 
+                    ? this.readinessPollInterval 
+                    : Math.min(250 * (2 ** Math.min(attempt, 14)), 2000);
                 attempt++;
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
@@ -237,13 +227,13 @@ class ExternalProvider {
         await this._ensureStarted(workspaceRoot);
 
         if (this.protocol === 'direct') {
-            await this.sendRequestWithRetry('search_components', {});
+            await this.sendRequestWithRetry('search_components', {}, { waitUntilReady: true });
             return;
         }
 
         const fileListTool = this._fileListTool();
         if (fileListTool) {
-            await this.callToolValue(fileListTool, this._argumentsFor(fileListTool, '', { limit: 1 }));
+            await this.callToolValue(fileListTool, this._argumentsFor(fileListTool, '', { limit: 1 }), { waitUntilReady: true });
             return;
         }
 
@@ -253,8 +243,17 @@ class ExternalProvider {
                 searchTool, 
                 '__gtags_code_readiness_probe__',
                 { contentSearch: false, verbosity: 'names_only', limit: 1 }
-            ));
+            ), { waitUntilReady: true });
+        } else {
+            throw new Error('External MCP server does not advertise a tool that can be used for readiness checks.');
         }
+    }
+
+    _callerTool() {
+        return this._findTool(['caller'], candidate => {
+            const properties = this._toolProperties(candidate);
+            return Boolean(properties.symbol || properties.selected_component || properties.name || properties.key);
+        });
     }
 
     _toolProperties(tool) {
@@ -347,12 +346,47 @@ class ExternalProvider {
         }
     }
 
-    async callToolValue(tool, args) {
-        const result = await this.sendRequestWithRetry('tools/call', {
-            name: tool.name,
-            arguments: args
-        });
-        if (result && result.isError) throw new Error(`External tool failed: ${tool.name}`);
+    _toolError(result, toolName) {
+        if (!result || !result.isError) return null;
+        const parsed = this._parseToolResult(result);
+        const message = typeof parsed === 'string'
+            ? parsed
+            : parsed && typeof parsed.message === 'string'
+                ? parsed.message
+                : JSON.stringify(parsed);
+        return new Error(message || `External tool failed: ${toolName}`);
+    }
+
+    async _requestTool(toolName, args, options = {}) {
+        let waiting = false;
+        while (true) {
+            try {
+                const result = await this.sendRequestWithRetry('tools/call', {
+                    name: toolName,
+                    arguments: args
+                }, options);
+                
+                const error = this._toolError(result, toolName);
+                if (error) {
+                    if (waiting && this.channel) this.channel.appendLine('[External Engine] Ready.');
+                    throw error;
+                }
+                
+                if (waiting && this.channel) this.channel.appendLine('[External Engine] Ready.');
+                return result;
+            } catch (error) {
+                if (!options.waitUntilReady || !this._isReadinessError(error)) throw error;
+                if (!waiting && this.channel) {
+                    this.channel.appendLine(`[External Engine] ${error.message}. Retrying until it is ready...`);
+                }
+                waiting = true;
+                await new Promise(resolve => setTimeout(resolve, this.readinessPollInterval));
+            }
+        }
+    }
+
+    async callToolValue(tool, args, retryOptions = {}) {
+        const result = await this._requestTool(tool.name, args, retryOptions);
         return this._parseToolResult(result);
     }
 
@@ -363,11 +397,7 @@ class ExternalProvider {
         let paginationTool = null;
         
         while (currentTool) {
-            const result = await this.sendRequestWithRetry('tools/call', {
-                name: currentTool,
-                arguments: currentArgs
-            });
-            if (result && result.isError) throw new Error(`External tool failed: ${currentTool}`);
+            const result = await this._requestTool(currentTool, currentArgs);
             
             const parsed = this._parseToolResult(result);
             pages.push(parsed);
@@ -400,11 +430,7 @@ class ExternalProvider {
         let currentArgs = args;
         let paginationTool = null;
         while (currentTool) {
-            const result = await this.sendRequestWithRetry('tools/call', {
-                name: currentTool,
-                arguments: currentArgs
-            });
-            if (result && result.isError) throw new Error(`External tool failed: ${currentTool}`);
+            const result = await this._requestTool(currentTool, currentArgs);
             const parsed = this._parseToolResult(result);
             items.push(...this._resultItems(parsed));
             const next = this._nextPage(parsed, paginationTool);
@@ -596,7 +622,31 @@ class ExternalProvider {
             return Boolean(properties.symbol || properties.selected_component || properties.name || properties.key);
         });
         
-        const tool = dedicated || this._searchTool();
+        const searchTool = this._searchTool();
+        if (!dedicated) {
+            const callerTool = this._callerTool();
+            if (callerTool && searchTool) {
+                const callerReferences = await this._referencesFromCallers(
+                    workspaceRoot,
+                    symbol,
+                    callerTool,
+                    searchTool
+                );
+                
+                if (callerReferences !== null) {
+                    const seen = new Set();
+                    for (const reference of callerReferences) {
+                        const unique = `${reference.file}:${reference.line}:${reference.code}`;
+                        if (seen.has(unique)) continue;
+                        seen.add(unique);
+                        yield reference;
+                    }
+                    return;
+                }
+            }
+        }
+        
+        const tool = dedicated || searchTool;
         if (!tool) throw new Error('External engine does not advertise a reference or content search tool.');
         const contentSearch = !dedicated;
         
@@ -629,23 +679,11 @@ class ExternalProvider {
             return response && Array.isArray(response.items) ? response.items : [];
         }
         
-        const tool = this._findTool(['caller'], candidate => {
-            const properties = this._toolProperties(candidate);
-            return Boolean(properties.symbol || properties.selected_component || properties.name || properties.key);
-        });
+        const tool = this._callerTool();
         if (!tool) throw new Error('External engine does not advertise a caller tool.');
         
         const raw = await this._callTool(workspaceRoot, tool, this._argumentsFor(tool, symbol, { depth: 1, verbosity: 'metadata' }));
-        const locations = raw.map(item => this._normalizeLocation(workspaceRoot, item)).filter(Boolean);
-        
-        const resolved = await Promise.all(locations.map(async location => {
-            if (!/declaration|prototype/i.test(location.type)) return location;
-            const definitions = [];
-            for await (const definition of this.queryDefinitions(workspaceRoot, location.name)) {
-                definitions.push(definition);
-            }
-            return definitions[0] || location;
-        }));
+        const resolved = await this._resolveCallerLocations(workspaceRoot, raw);
         
         const seen = new Set();
         return resolved.filter(item => {
@@ -654,6 +692,82 @@ class ExternalProvider {
             seen.add(key);
             return true;
         }).map(item => ({ name: item.name, file: item.file, line: item.line }));
+    }
+    
+    async _resolveCallerLocations(workspaceRoot, raw) {
+        const locations = raw.map(item => this._normalizeLocation(workspaceRoot, item)).filter(Boolean);
+        return Promise.all(locations.map(async location => {
+            if (!/declaration|prototype/i.test(location.type)) return location;
+            const definitions = [];
+            for await (const definition of this.queryDefinitions(workspaceRoot, location.name)) {
+                definitions.push(definition);
+            }
+            return definitions[0] || location;
+        }));
+    }
+
+    async _referencesFromCallers(workspaceRoot, symbol, callerTool, searchTool) {
+        const rawCallers = await this._callTool(
+            workspaceRoot, 
+            callerTool,
+            this._argumentsFor(callerTool, symbol, { depth: 1, verbosity: 'metadata' })
+        );
+        
+        if (rawCallers.length === 0) return null;
+        const callers = await this._resolveCallerLocations(workspaceRoot, rawCallers);
+        
+        const symbolPattern = new RegExp(`(?:^|[^a-zA-Z0-9_])${this._escapeRegExp(symbol)}(?![a-zA-Z0-9_])`);
+        const references = [];
+        const seenCallers = new Set();
+        
+        for (const caller of callers) {
+            const callerKey = `${caller.name}::${caller.file}:${caller.line}`;
+            if (seenCallers.has(callerKey)) continue;
+            seenCallers.add(callerKey);
+            
+            const relativeFile = path.relative(workspaceRoot, caller.file).replace(/\\/g, '/');
+            const rawChunks = await this._callTool(
+                workspaceRoot,
+                searchTool,
+                this._argumentsFor(
+                    searchTool,
+                    this._toolProperties(searchTool).pattern 
+                        ? `^${this._escapeRegExp(caller.name)}$`
+                        : caller.name,
+                    {
+                        contentSearch: false,
+                        verbosity: 'full',
+                        folderPath: path.posix.dirname(relativeFile),
+                        filePattern: path.posix.basename(relativeFile)
+                    }
+                )
+            );
+            
+            const chunks = rawChunks
+                .map(item => this._normalizeLocation(workspaceRoot, item))
+                .filter(Boolean);
+            
+            const chunk = chunks.find(item => 
+                path.normalize(item.file) === path.normalize(caller.file) &&
+                (!caller.line || item.line === caller.line)
+            ) || chunks.find(item => 
+                item.name === caller.name &&
+                path.normalize(item.file) === path.normalize(caller.file)
+            );
+            
+            if (!chunk || !chunk.code) continue;
+            String(chunk.code).split(/\r?\n/).forEach((code, index) => {
+                if (symbolPattern.test(code)) {
+                    references.push({
+                        file: chunk.file,
+                        line: chunk.line + index,
+                        code: code.trim()
+                    });
+                }
+            });
+        }
+        
+        return references;
     }
     
     _escapeRegExp(string) {

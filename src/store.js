@@ -19,17 +19,22 @@ async function getSourceFiles(dir, root, out = []) {
 
 
 async function prepareProvider(root, channel, provider) {
-    channel.appendLine('Finding Number of files to be indexed...');
-    const files = await getSourceFiles(root, root);
-    channel.appendLine(`Found ${files.length} source files(s) to index...`);
+    let files = [];
+    if (provider.requiresSourceFiles !== false) {
+        channel.appendLine('Finding Number of files to be indexed...');
+        files = await getSourceFiles(root, root);
+        channel.appendLine(`Found ${files.length} source files(s) to index...`);
+    }
     
     if (provider.waitUntilReady) {
         channel.appendLine('Waiting for external engine to become ready...');
         await provider.waitUntilReady(root);
         channel.appendLine('External engine is ready.');
     } else {
-        for await (const message of provider.generateTags(root, files)) {
-            channel.appendLine(message);
+        if (provider.generateTags) {
+            for await (const message of provider.generateTags(root, files)) {
+                channel.appendLine(message);
+            }
         }
     }
 }

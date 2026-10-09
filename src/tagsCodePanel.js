@@ -57,7 +57,10 @@ class TagsCodeViewProvider {
             data
           });
         } catch (e) {
-          vscode.window.showErrorMessage(e.message);
+          console.error('gtags-code: Failed to load panel data:', e);
+          if (this.tagsProvider.channel) {
+            this.tagsProvider.channel.appendLine(`[Error] Failed to load ${msg.mode || 'callers'} for ${msg.tagName}: ${e.message}`);
+          }
           webviewView.webview.postMessage({
             type: 'getTags:response',
             id: msg.id,
