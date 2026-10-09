@@ -1,25 +1,22 @@
 const cp = require('child_process');
 const readline = require('readline');
-const vscode = require('vscode');
 const path = require('path');
 
 class ExternalProvider {
     constructor(options = {}) {
         const command = this._normalizeCommand(options.command, options.args);
         const indexCommand = this._normalizeCommand(options.indexCommand, options.indexArgs);
-        
+
         this.command = command.executable;
         this.args = command.args;
         this.indexCommand = indexCommand.executable;
         this.indexArgs = indexCommand.args;
-        this.timeout = options.timeout || 5000;
-        this.readyTimeout = options.readyTimeout || 600000;
         this.readinessPollInterval = options.readinessPollInterval || 5000;
         this.requiresSourceFiles = false;
         this.concurrency = Math.max(1, Math.min(128, options.concurrency || 32));
         this.environment = Object.assign({}, process.env, options.env || {});
         this.channel = options.channel;
-        
+
         this.startPromise = null;
         this.pendingRequests = new Map();
         this.nextMessageId = 1;
@@ -118,17 +115,17 @@ class ExternalProvider {
             if (this.process !== child) return;
             this._stopProcess(new Error(`External engine process exited with code ${code}`));
         });
-        
+
         this.protocol = null;
         this.tools = [];
-        
+
         try {
             const initialized = await this.sendRequest('initialize', {
                 protocolVersion: '2024-11-05',
                 capabilities: {},
                 clientInfo: { name: 'gtags-code', version: '0.1.0' }
             });
-            
+
             if (initialized && initialized.capabilities) {
                 this.protocol = 'mcp';
                 this._sendNotification('notifications/initialized', {});
@@ -176,31 +173,34 @@ class ExternalProvider {
     async sendRequest(method, params) {
         return this._sendRequest(method, params);
     }
-    
+
     _isReadinessError(error) {
         const message = String(error && error.message ? error.message : error).toLowerCase();
         return message.includes('not ready') ||
-               message.includes('retry in') ||
-               message.includes('try again') ||
-               message.includes('warming up') ||
-               message.includes('initializing') ||
-               message.includes('indexing in progress') ||
-               message.includes('ingestion in progress') ||
-               message.includes('temporarily unavailable') ||
-               message.includes('service unavailable') ||
-               message.includes('timed out') ||
-               message.includes('timeout');
+            message.includes('retry in') ||
+            message.includes('try again') ||
+            message.includes('warming up') ||
+            message.includes('initializing') ||
+            message.includes('indexing in progress') ||
+            message.includes('ingestion in progress') ||
+            message.includes('temporarily unavailable') ||
+            message.includes('service unavailable') ||
+            message.includes('timed out') ||
+            message.includes('timeout');
     }
 
     async sendRequestWithRetry(method, params, options = {}) {
         const attempts = options.attempts || 5;
         const waitUntilReady = options.waitUntilReady === true;
-        
+
         let attempt = 0;
-        
+        let waiting = false;
         while (true) {
             try {
                 const result = await this._sendRequest(method, params);
+                if (waiting && this.channel) {
+                    this.channel.appendLine('[External Engine] Engine is ready.');
+                }
                 return result;
             } catch (error) {
                 if (!this.process) throw error;
@@ -211,11 +211,16 @@ class ExternalProvider {
                     attempt++;
                     continue;
                 }
-                
+
                 if (!waitUntilReady && attempt >= attempts - 1) throw error;
-                
-                const delay = waitUntilReady 
-                    ? this.readinessPollInterval 
+
+                if (!waiting && this.channel) {
+                    this.channel.appendLine('[External Engine] Waiting for engine to be ready...');
+                }
+                waiting = true;
+
+                const delay = waitUntilReady
+                    ? this.readinessPollInterval
                     : Math.min(250 * (2 ** Math.min(attempt, 14)), 2000);
                 attempt++;
                 await new Promise(resolve => setTimeout(resolve, delay));
@@ -240,7 +245,7 @@ class ExternalProvider {
         const searchTool = this._searchTool();
         if (searchTool) {
             await this.callToolValue(searchTool, this._argumentsFor(
-                searchTool, 
+                searchTool,
                 '__gtags_code_readiness_probe__',
                 { contentSearch: false, verbosity: 'names_only', limit: 1 }
             ), { waitUntilReady: true });
@@ -262,7 +267,7 @@ class ExternalProvider {
 
     _findTool(words, predicate = () => true) {
         for (const word of words) {
-            const candidate = this.tools.find(t => 
+            const candidate = this.tools.find(t =>
                 (t.name || '').toLowerCase().includes(word.toLowerCase()) && predicate(t)
             );
             if (candidate) return candidate;
@@ -307,6 +312,8 @@ class ExternalProvider {
         if (properties.ranked) args.ranked = true;
         if (properties.depth && options.depth) args.depth = options.depth;
         if (properties.limit && options.limit) args.limit = options.limit;
+        if (properties.folder_path && options.folderPath) args.folder_path = options.folderPath;
+        if (properties.file_pattern && options.filePattern) args.file_pattern = options.filePattern;
         return args;
     }
 
@@ -365,13 +372,13 @@ class ExternalProvider {
                     name: toolName,
                     arguments: args
                 }, options);
-                
+
                 const error = this._toolError(result, toolName);
                 if (error) {
                     if (waiting && this.channel) this.channel.appendLine('[External Engine] Ready.');
                     throw error;
                 }
-                
+
                 if (waiting && this.channel) this.channel.appendLine('[External Engine] Ready.');
                 return result;
             } catch (error) {
@@ -395,19 +402,19 @@ class ExternalProvider {
         let currentTool = tool.name;
         let currentArgs = args;
         let paginationTool = null;
-        
+
         while (currentTool) {
             const result = await this._requestTool(currentTool, currentArgs);
-            
+
             const parsed = this._parseToolResult(result);
             pages.push(parsed);
-            
+
             const next = this._nextPage(parsed, paginationTool);
             if (next && next.tool) paginationTool = next.tool;
             currentTool = next && next.tool;
             currentArgs = next && next.arguments;
         }
-        
+
         return pages;
     }
 
@@ -417,7 +424,7 @@ class ExternalProvider {
         if (page.total_pages && page.page >= page.total_pages) return null;
         if (value.next && value.next.tool) return value.next;
         if (!paginationTool || !page.handle || !page.page || !page.total_pages) return null;
-        
+
         const args = { handle: page.handle, page: page.page + 1 };
         if (page.page_size) args.page_size = page.page_size;
         return { tool: paginationTool, arguments: args };
@@ -465,23 +472,23 @@ class ExternalProvider {
         await this.clearCaches();
         const cmd = this.indexCommand.replace('${workspaceFolder}', workspaceRoot);
         const args = this.indexArgs.map(arg => arg.replace('${workspaceFolder}', workspaceRoot));
-        
+
         const proc = cp.spawn(cmd, args, {
             cwd: workspaceRoot,
             env: this.environment,
             stdio: ['ignore', 'pipe', 'pipe']
         });
-        
+
         let errorOutput = '';
-        proc.stderr.on('data', data => { 
+        proc.stderr.on('data', data => {
             const chunk = data.toString();
-            errorOutput += chunk; 
+            errorOutput += chunk;
             if (this.channel) this.channel.append(chunk);
         });
         proc.stdout.on('data', data => {
             if (this.channel) this.channel.append(data.toString());
         });
-        
+
         await new Promise((resolve, reject) => {
             proc.on('exit', code => {
                 if (code === 0) resolve();
@@ -504,11 +511,11 @@ class ExternalProvider {
             }
             return;
         }
-        
+
         const seen = new Set();
         const fileListTool = this._fileListTool();
         const fileOverviewTool = this._fileOverviewTool();
-        
+
         if (fileListTool && fileOverviewTool) {
             const listProperties = this._toolProperties(fileListTool);
             const supportsPagination = Boolean(listProperties.limit && listProperties.offset);
@@ -517,18 +524,18 @@ class ExternalProvider {
             let totalFiles = null;
             let processedFiles = 0;
             let nextProgress = 500;
-            
+
             const fileProperty = ['file_node', 'file', 'path', 'file_name']
                 .find(key => this._toolProperties(fileOverviewTool)[key]);
-            
+
             while (true) {
                 const listArguments = {};
                 if (listProperties.limit) listArguments.limit = pageSize || 10000;
                 if (listProperties.offset) listArguments.offset = fileOffset;
-                
+
                 const listed = await this.callToolValue(fileListTool, listArguments);
                 const files = Array.isArray(listed) ? listed : listed.files || listed.items || [];
-                
+
                 if (totalFiles === null) {
                     const reportedTotal = Number(listed.total || listed.total_files || listed.count);
                     totalFiles = Number.isFinite(reportedTotal) ? reportedTotal : files.length;
@@ -537,26 +544,26 @@ class ExternalProvider {
                             `with concurrency ${this.concurrency}...`);
                     }
                 }
-                
+
                 for (let offset = 0; offset < files.length; offset += this.concurrency) {
                     const batch = files.slice(offset, offset + this.concurrency);
                     const overviewPages = await Promise.all(batch.map(file => {
                         const fileName = typeof file === 'string' ? file : file.file || file.path || file.name;
                         return this.callToolPages(fileOverviewTool, { [fileProperty]: fileName });
                     }));
-                    
+
                     const batchNames = new Set();
                     for (const pages of overviewPages) {
                         for (const page of pages) this._collectNames(page, batchNames);
                     }
-                    
+
                     for (const name of batchNames) {
                         if (!seen.has(name)) {
                             seen.add(name);
                             yield name;
                         }
                     }
-                    
+
                     processedFiles += batch.length;
                     if (processedFiles >= nextProgress || processedFiles === totalFiles) {
                         if (this.channel) {
@@ -565,7 +572,7 @@ class ExternalProvider {
                         nextProgress += 500;
                     }
                 }
-                
+
                 fileOffset += files.length;
                 if (!supportsPagination || files.length === 0 || fileOffset >= totalFiles) {
                     break;
@@ -592,20 +599,20 @@ class ExternalProvider {
             for (const item of (response && response.items) || []) yield item;
             return;
         }
-        
+
         const dedicated = this._findTool(['definition'], tool => {
             const properties = this._toolProperties(tool);
             return Boolean(properties.symbol || properties.name || properties.key || properties.pattern);
         });
         const tool = dedicated || this._searchTool();
         if (!tool) throw new Error('External engine does not advertise a definition or symbol search tool.');
-        
+
         const pattern = this._toolProperties(tool).pattern ? `^${this._escapeRegExp(key)}$` : key;
         const raw = await this._callTool(workspaceRoot, tool, this._argumentsFor(tool, pattern, { contentSearch: false, verbosity: 'metadata' }));
         let matches = raw.map(item => this._normalizeLocation(workspaceRoot, item)).filter(Boolean);
         matches = matches.filter(item => !item.name || item.name === key);
         const definitions = matches.filter(item => !/declaration|prototype/i.test(item.type));
-        
+
         for (const match of definitions.length ? definitions : matches) yield match;
     }
 
@@ -616,12 +623,12 @@ class ExternalProvider {
             for (const item of (response && response.items) || []) yield item;
             return;
         }
-        
+
         const dedicated = this._findTool(['reference', 'usage', 'users'], tool => {
             const properties = this._toolProperties(tool);
             return Boolean(properties.symbol || properties.selected_component || properties.name || properties.key);
         });
-        
+
         const searchTool = this._searchTool();
         if (!dedicated) {
             const callerTool = this._callerTool();
@@ -632,7 +639,7 @@ class ExternalProvider {
                     callerTool,
                     searchTool
                 );
-                
+
                 if (callerReferences !== null) {
                     const seen = new Set();
                     for (const reference of callerReferences) {
@@ -645,24 +652,24 @@ class ExternalProvider {
                 }
             }
         }
-        
+
         const tool = dedicated || searchTool;
         if (!tool) throw new Error('External engine does not advertise a reference or content search tool.');
         const contentSearch = !dedicated;
-        
+
         const raw = await this._callTool(workspaceRoot, tool, this._argumentsFor(tool, symbol, { contentSearch }));
         const symbolPattern = new RegExp(`(?:^|[^a-zA-Z0-9_])${this._escapeRegExp(symbol)}(?![a-zA-Z0-9_])`);
-        
+
         const seen = new Set();
         for (const item of raw) {
             const location = this._normalizeLocation(workspaceRoot, item);
             if (!location) continue;
-            
+
             const lines = String(location.code || "").split(/\r?\n/);
-            const matchingLines = contentSearch 
+            const matchingLines = contentSearch
                 ? lines.map((code, index) => ({ code, line: location.line + index })).filter(entry => symbolPattern.test(entry.code))
                 : [{ code: lines[0] || '', line: location.line }];
-                
+
             for (const match of matchingLines) {
                 const unique = `${location.file}:${match.line}:${match.code}`;
                 if (seen.has(unique)) continue;
@@ -678,13 +685,13 @@ class ExternalProvider {
             const response = await this.sendRequest('get_callers', { symbol });
             return response && Array.isArray(response.items) ? response.items : [];
         }
-        
+
         const tool = this._callerTool();
         if (!tool) throw new Error('External engine does not advertise a caller tool.');
-        
+
         const raw = await this._callTool(workspaceRoot, tool, this._argumentsFor(tool, symbol, { depth: 1, verbosity: 'metadata' }));
         const resolved = await this._resolveCallerLocations(workspaceRoot, raw);
-        
+
         const seen = new Set();
         return resolved.filter(item => {
             const key = `${item.name}:${item.file}:${item.line}`;
@@ -693,7 +700,7 @@ class ExternalProvider {
             return true;
         }).map(item => ({ name: item.name, file: item.file, line: item.line }));
     }
-    
+
     async _resolveCallerLocations(workspaceRoot, raw) {
         const locations = raw.map(item => this._normalizeLocation(workspaceRoot, item)).filter(Boolean);
         return Promise.all(locations.map(async location => {
@@ -708,30 +715,30 @@ class ExternalProvider {
 
     async _referencesFromCallers(workspaceRoot, symbol, callerTool, searchTool) {
         const rawCallers = await this._callTool(
-            workspaceRoot, 
+            workspaceRoot,
             callerTool,
             this._argumentsFor(callerTool, symbol, { depth: 1, verbosity: 'metadata' })
         );
-        
+
         if (rawCallers.length === 0) return null;
         const callers = await this._resolveCallerLocations(workspaceRoot, rawCallers);
-        
+
         const symbolPattern = new RegExp(`(?:^|[^a-zA-Z0-9_])${this._escapeRegExp(symbol)}(?![a-zA-Z0-9_])`);
         const references = [];
         const seenCallers = new Set();
-        
+
         for (const caller of callers) {
             const callerKey = `${caller.name}::${caller.file}:${caller.line}`;
-            if (seenCallers.has(callerKey)) continue;
+            if (!caller.name || seenCallers.has(callerKey)) continue;
             seenCallers.add(callerKey);
-            
+
             const relativeFile = path.relative(workspaceRoot, caller.file).replace(/\\/g, '/');
             const rawChunks = await this._callTool(
                 workspaceRoot,
                 searchTool,
                 this._argumentsFor(
                     searchTool,
-                    this._toolProperties(searchTool).pattern 
+                    this._toolProperties(searchTool).pattern
                         ? `^${this._escapeRegExp(caller.name)}$`
                         : caller.name,
                     {
@@ -742,19 +749,20 @@ class ExternalProvider {
                     }
                 )
             );
-            
+
             const chunks = rawChunks
                 .map(item => this._normalizeLocation(workspaceRoot, item))
                 .filter(Boolean);
-            
-            const chunk = chunks.find(item => 
+
+            const chunk = chunks.find(item =>
+                item.name === caller.name &&
                 path.normalize(item.file) === path.normalize(caller.file) &&
                 (!caller.line || item.line === caller.line)
-            ) || chunks.find(item => 
+            ) || chunks.find(item =>
                 item.name === caller.name &&
                 path.normalize(item.file) === path.normalize(caller.file)
             );
-            
+
             if (!chunk || !chunk.code) continue;
             String(chunk.code).split(/\r?\n/).forEach((code, index) => {
                 if (symbolPattern.test(code)) {
@@ -766,10 +774,10 @@ class ExternalProvider {
                 }
             });
         }
-        
+
         return references;
     }
-    
+
     _escapeRegExp(string) {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
