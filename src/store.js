@@ -25,17 +25,15 @@ async function prepareProvider(root, channel, provider) {
         files = await getSourceFiles(root, root);
         channel.appendLine(`Found ${files.length} source files(s) to index...`);
     }
-    
+    if (provider.generateTags) {
+        for await (const message of provider.generateTags(root, files)) {
+            channel.appendLine(message);
+        }
+    }
     if (provider.waitUntilReady) {
         channel.appendLine('Waiting for external engine to become ready...');
         await provider.waitUntilReady(root);
         channel.appendLine('External engine is ready.');
-    } else {
-        if (provider.generateTags) {
-            for await (const message of provider.generateTags(root, files)) {
-                channel.appendLine(message);
-            }
-        }
     }
 }
 
@@ -68,7 +66,7 @@ async function parseToTagsFile(root, channel, provider) {
     }
 
     await idWriter.flush();
-    
+
     channel.appendLine(`Created IDs for ${ind} symbols. Creating token index...`);
 
     const tokenWriter = new BatchWriter(50000, (processed) => {
@@ -78,7 +76,7 @@ async function parseToTagsFile(root, channel, provider) {
         await tokenWriter.add({ type: 'put', key: `token:${token}`, value: ids });
     }
     await tokenWriter.flush();
-    
+
     channel.appendLine('All structure types and functions are indexed...');
 }
 
