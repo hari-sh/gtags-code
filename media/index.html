@@ -465,11 +465,12 @@ function renderContent() {
   const activeItem = items.find(p => p.id === activeId);
   
   if (!activeItem) {
-    document.querySelectorAll('.empty-state').forEach(el => el.style.display = 'flex');
+    const emptyStateEl = plotContainerEl.querySelector(':scope > .empty-state');
+    if (emptyStateEl) emptyStateEl.style.display = 'flex';
     return;
   }
 
-  const emptyStateEl = plotContainerEl.querySelector('.empty-state');
+  const emptyStateEl = plotContainerEl.querySelector(':scope > .empty-state');
   if (emptyStateEl) emptyStateEl.style.display = 'none';
 
   for (const item of items) {

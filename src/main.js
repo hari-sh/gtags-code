@@ -31,8 +31,15 @@ async function storeTags() {
     vscode.window.showErrorMessage('No workspace folder open');
     return;
   }
-  await checkDependencies(tagsProvider.dependencies);
-  await parseAndStoreTags(channel, workspaceFolder.uri.fsPath, tagsProvider);
+  try {
+    await checkDependencies(tagsProvider.dependencies);
+    await parseAndStoreTags(channel, workspaceFolder.uri.fsPath, tagsProvider);
+  } catch (error) {
+    const message = error && error.message ? error.message : String(error);
+    console.error('gtags-code: Store Tags failed:', error);
+    channel.show();
+    channel.appendLine(`[Error] Store Tags failed: ${message}`);
+  }
 }
 
 async function searchTags(context) {
