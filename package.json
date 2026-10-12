@@ -85,12 +85,6 @@
           },
           "default": {},
           "description": "Environment variables passed to external processes."
-        },
-        "gtags-code.externalTimeout": {
-          "type": "number",
-          "default": 5000,
-          "minimum": 1000,
-          "description": "Timeout in milliseconds for external engine requests."
         }
       }
     },
@@ -166,6 +160,7 @@
   },
   "dependencies": {
     "classic-level": "^3.0.0",
+    "fast-glob": "^3.3.3",
     "node-gyp-build": "^4.8.4"
   },
   "devDependencies": {

@@ -3,6 +3,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { searchQuery } = require('./database');
+const { escapeRegExp } = require('./utils');
 
 async function getlno(entry) {
     if (entry && entry.line) {
@@ -147,10 +148,6 @@ function getOrCreateTerminal(name) {
 
 function shellEscape(str) {
     return "'" + String(str).replace(/'/g, "'\\''") + "'";
-}
-
-function escapeRegExp(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function displayMatchesInTerminal(symbol, matches, targetToHighlight) {

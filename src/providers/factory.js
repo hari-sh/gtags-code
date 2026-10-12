@@ -16,7 +16,6 @@ class TagsProviderFactory {
                     indexCommand: config.externalIndexCommand,
                     indexArgs: config.externalIndexArgs,
                     env: config.externalEnv,
-                    timeout: config.externalTimeout,
                     channel: channel
                 });
 

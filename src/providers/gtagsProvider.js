@@ -1,9 +1,22 @@
 const { spawn } = require('child_process');
+const { once } = require('events');
 const readline = require('readline');
 const path = require('path');
 const fssync = require('fs');
-const fs = require('fs').promises;
+const fg = require('fast-glob');
+const { escapeRegExp } = require('../utils');
 const HEADER_EXTENSIONS = ['.h', '.hpp', '.hh', '.hxx'];
+const SOURCE_PATTERNS = ['**/*.{c,cpp,h,hpp,cc,hh,cxx,hxx}'];
+const IGNORE_PATTERNS = ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**', '**/.vscode/**'];
+
+async function getSourceFiles(root) {
+    return fg(SOURCE_PATTERNS, {
+        cwd: root,
+        ignore: IGNORE_PATTERNS,
+        dot: false,
+        onlyFiles: true
+    });
+}
 
 class GtagsProvider {
     constructor(gtagsCmd = 'gtags', globalCmd = 'global') {
@@ -22,7 +35,10 @@ class GtagsProvider {
         return [this.globalCmd, this.gtagsCmd];
     }
 
-    async *generateTags(workspaceRoot, files) {
+    async *generateTags(workspaceRoot) {
+        yield 'Finding Number of files to be indexed...';
+        const files = await getSourceFiles(workspaceRoot);
+        yield `Found ${files.length} source files(s) to index...`;
         yield 'Running Gtags...';
         const p = spawn(this.gtagsCmd, ['-v', '-f', '-'], { cwd: workspaceRoot });
 
@@ -42,15 +58,10 @@ class GtagsProvider {
                 yield `${processed}/${files.length} files processed by gtags...`;
             }
         }
-        await new Promise((resolve, reject) => {
-            p.on('close', (code) => {
-                if (code === 0) {
-                    resolve();
-                } else {
-                    reject(new Error(`gtags exited with code ${code}`));
-                }
-            });
-        });
+        const [code] = await once(p, 'close');
+        if (code !== 0) {
+            throw new Error(`gtags exited with code ${code}`);
+        }
     }
 
     async *_runGlobal(args, options = {}) {
@@ -246,7 +257,7 @@ class GtagsProvider {
         const escapedSymbol = this._escapeRegExp(symbol);
         const callRegex = new RegExp(`(?:^|[^\\w~])${escapedSymbol}\\s*\\(`);
         const callers = [];
-        
+
         for await (const tag of this._runGlobal(['-rx', symbol], {
             cwd: workspaceRoot,
             reflectionError: false
@@ -255,7 +266,7 @@ class GtagsProvider {
                 callers.push(tag);
             }
         }
-        
+
         return callers;
     }
 
@@ -282,14 +293,8 @@ class GtagsProvider {
         return new RegExp(`(?:^|[^\\w~])${this._escapeRegExp(tag.symbol)}\\s*\\(`).test(source);
     }
 
-    _findFunctionRange(workspaceRoot, file, line) {
-        const fullPath = path.isAbsolute(file) ? file : path.join(workspaceRoot, file);
-        let lines;
-        try {
-            lines = fssync.readFileSync(fullPath, 'utf8').split(/\r?\n/);
-        } catch {
-            return null;
-        }
+    _findFunctionRange(lines, line) {
+        if (!lines || !lines.length) return null;
 
         const startIndex = Math.max(0, Number(line) - 1);
         let signatureStartIndex = startIndex;
@@ -342,8 +347,6 @@ class GtagsProvider {
 
     _getFunctionRangeForTag(workspaceRoot, tag) {
         if (!tag || !tag.symbol || !tag.file || !Number.isFinite(tag.line)) return null;
-        const range = this._findFunctionRange(workspaceRoot, tag.file, tag.line);
-        if (!range) return null;
 
         const fullPath = path.isAbsolute(tag.file) ? tag.file : path.join(workspaceRoot, tag.file);
         let lines;
@@ -352,6 +355,9 @@ class GtagsProvider {
         } catch {
             return null;
         }
+
+        const range = this._findFunctionRange(lines, tag.line);
+        if (!range) return null;
 
         const signature = lines
             .slice(Math.max(0, range.startLine - 1), range.bodyStartLine)
@@ -372,7 +378,7 @@ class GtagsProvider {
     }
 
     _escapeRegExp(value) {
-        return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return escapeRegExp(value);
     }
 
     _toWorkspacePath(workspaceRoot, file) {
@@ -386,8 +392,5 @@ class GtagsProvider {
         if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) return relativePath;
         return file;
     }
-
-
 }
-
 module.exports = GtagsProvider;
