@@ -1,44 +1,29 @@
-const fs = require('fs').promises;
-const path = require('path');
 const { cleanDB, openDB } = require('./database');
 const { tokenize, elapsedTime, cleanWorkspace } = require('./utils');
 const BatchWriter = require('./batchWriter');
-const exts = new Set(['.c', '.cpp', '.h', '.hpp', '.cc', '.hh', '.cxx', '.hxx']);
 
-async function getSourceFiles(dir, root, out = []) {
-    for (const e of await fs.readdir(dir, { withFileTypes: true })) {
-        const fullPath = path.join(dir, e.name);
-        if (e.isDirectory()) {
-            await getSourceFiles(fullPath, root, out);
-        } else if (exts.has(path.extname(e.name))) {
-            out.push(path.relative(root, fullPath));
-        }
-    }
-    return out;
-}
+/**
+ * Controller Phase 1: Generate tags via the provider and wait for readiness.
+ */
+async function generateTags(channel, root, provider) {
+    if (provider.clearCaches) await provider.clearCaches();
+    await cleanWorkspace(root, provider.workspaceFilesToRemove, channel);
 
-
-async function prepareProvider(root, channel, provider) {
-    let files = [];
-    if (provider.requiresSourceFiles !== false) {
-        channel.appendLine('Finding Number of files to be indexed...');
-        files = await getSourceFiles(root, root);
-        channel.appendLine(`Found ${files.length} source files(s) to index...`);
-    }
     if (provider.generateTags) {
-        for await (const message of provider.generateTags(root, files)) {
+        for await (const message of provider.generateTags(root)) {
             channel.appendLine(message);
         }
     }
-    if (provider.waitUntilReady) {
-        channel.appendLine('Waiting for external engine to become ready...');
-        await provider.waitUntilReady(root);
-        channel.appendLine('External engine is ready.');
-    }
 }
 
-async function parseToTagsFile(root, channel, provider) {
-    channel.appendLine('External indexing is complete. Importing structure types and functions into Tags DB...');
+/**
+ * Controller Phase 2: Stream symbols from the provider and store them in the Tags DB.
+ */
+async function streamAndStoreSymbols(channel, root, provider) {
+    channel.appendLine('Importing structure types and functions into Tags DB...');
+    await cleanDB();
+    await openDB();
+
     const idWriter = new BatchWriter(200000, (processed) => {
         channel.appendLine(`${processed} IDs assigned...`);
     });
@@ -61,7 +46,7 @@ async function parseToTagsFile(root, channel, provider) {
             }
             ind++;
         } catch (err) {
-            console.error("Error while processing line:", err);
+            console.error("Error while processing symbol:", err);
         }
     }
 
@@ -78,22 +63,22 @@ async function parseToTagsFile(root, channel, provider) {
     await tokenWriter.flush();
 
     channel.appendLine('All structure types and functions are indexed...');
+    channel.appendLine('Tags DataBase created successfully...');
 }
 
+/**
+ * Master Controller: Orchestrates tag generation followed by symbol streaming & DB storage.
+ */
 async function parseAndStoreTags(channel, root, provider) {
     channel.show();
     const start = performance.now();
-    if (provider.clearCaches) await provider.clearCaches();
-    await cleanWorkspace(root, provider.workspaceFilesToRemove, channel);
-    await prepareProvider(root, channel, provider);
-    await cleanDB();
-    await openDB();
-    await parseToTagsFile(root, channel, provider);
-    channel.appendLine('Post processing symbols...');
-    channel.appendLine('Tags DataBase created successfully...');
+    await generateTags(channel, root, provider);
+    await streamAndStoreSymbols(channel, root, provider);
     elapsedTime(start, performance.now(), channel);
 }
 
 module.exports = {
+    generateTags,
+    streamAndStoreSymbols,
     parseAndStoreTags
 };

@@ -1,4 +1,5 @@
-const { spawn } = require('child_process');
+const { promisify } = require('util');
+const execFile = promisify(require('child_process').execFile);
 const fs = require('fs').promises;
 const fssync = require('fs');
 const path = require('path');
@@ -28,18 +29,17 @@ const tokenize = (name) => {
     .filter(Boolean);
 };
 
+function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 async function checkDependencies(cmds) {
-    const getVersionAsync = (cmd) => new Promise((resolve, reject) => {
-        const child = spawn(cmd, ["--version"], { shell: true });
-        let output = "";
-        child.stdout.on("data", d => output += d);
-        child.stderr.on("data", d => output += d);
-        child.on("error", () => reject(new Error(`Please install ${cmd} or provide its path in settings.`)));
-        child.on("close", () => resolve(output.trim()));
-    });
-    
     for (const cmd of cmds || []) {
-        await getVersionAsync(cmd);
+        try {
+            await execFile(cmd, ['--version']);
+        } catch {
+            throw new Error(`Please install ${cmd} or provide its path in settings.`);
+        }
     }
 }
 
@@ -56,6 +56,7 @@ async function cleanWorkspace(workspaceRoot, files, channel) {
 module.exports = {
     elapsedTime,
     tokenize,
+    escapeRegExp,
     checkDependencies,
     cleanWorkspace
 };

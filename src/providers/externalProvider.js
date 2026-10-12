@@ -12,7 +12,6 @@ class ExternalProvider {
         this.indexCommand = indexCommand.executable;
         this.indexArgs = indexCommand.args;
         this.readinessPollInterval = options.readinessPollInterval || 5000;
-        this.requiresSourceFiles = false;
         this.concurrency = Math.max(1, Math.min(128, options.concurrency || 32));
         this.environment = Object.assign({}, process.env, options.env || {});
         this.channel = options.channel;
@@ -468,39 +467,44 @@ class ExternalProvider {
     }
 
     async *generateTags(workspaceRoot) {
-        if (!this.indexCommand) return;
-        await this.clearCaches();
-        const cmd = this.indexCommand.replace('${workspaceFolder}', workspaceRoot);
-        const args = this.indexArgs.map(arg => arg.replace('${workspaceFolder}', workspaceRoot));
+        if (this.indexCommand) {
+            await this.clearCaches();
+            const cmd = this.indexCommand.replace('${workspaceFolder}', workspaceRoot);
+            const args = this.indexArgs.map(arg => arg.replace('${workspaceFolder}', workspaceRoot));
 
-        const proc = cp.spawn(cmd, args, {
-            cwd: workspaceRoot,
-            env: this.environment,
-            stdio: ['ignore', 'pipe', 'pipe']
-        });
-
-        let errorOutput = '';
-        proc.stderr.on('data', data => {
-            const chunk = data.toString();
-            errorOutput += chunk;
-            if (this.channel) this.channel.append(chunk);
-        });
-        proc.stdout.on('data', data => {
-            if (this.channel) this.channel.append(data.toString());
-        });
-
-        await new Promise((resolve, reject) => {
-            proc.on('exit', code => {
-                if (code === 0) resolve();
-                else reject(new Error(errorOutput.trim() || `External indexing process exited with code ${code}`));
+            const proc = cp.spawn(cmd, args, {
+                cwd: workspaceRoot,
+                env: this.environment,
+                stdio: ['ignore', 'pipe', 'pipe']
             });
-            proc.on('error', reject);
-        });
-        yield 'External index created successfully.';
+
+            let errorOutput = '';
+            proc.stderr.on('data', data => {
+                const chunk = data.toString();
+                errorOutput += chunk;
+                if (this.channel) this.channel.append(chunk);
+            });
+            proc.stdout.on('data', data => {
+                if (this.channel) this.channel.append(data.toString());
+            });
+
+            await new Promise((resolve, reject) => {
+                proc.on('exit', code => {
+                    if (code === 0) resolve();
+                    else reject(new Error(errorOutput.trim() || `External indexing process exited with code ${code}`));
+                });
+                proc.on('error', reject);
+            });
+            yield 'External index created successfully.';
+        }
+
+        yield 'Waiting for external engine to become ready...';
+        await this.waitUntilReady(workspaceRoot);
+        yield 'External engine is ready.';
     }
 
     async *streamSymbols(workspaceRoot) {
-        await this._ensureStarted(workspaceRoot);
+        await this.waitUntilReady(workspaceRoot);
         if (this.protocol === 'direct') {
             const response = await this.sendRequestWithRetry('search_components', {});
             if (response && Array.isArray(response.items)) {
