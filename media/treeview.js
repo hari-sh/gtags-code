@@ -156,7 +156,7 @@
       throw new Error('mount: Invalid Vnode!');
     }
 
-    var css_248z$1 = ".markmap{font:300 16px/20px sans-serif}.markmap-link{fill:none}.markmap-node>circle{cursor:pointer}.markmap-foreign{display:inline-block}.markmap-foreign a{color:#0097e6}.markmap-foreign a:hover{color:#00a8ff}.markmap-foreign code{background-color:#f0f0f0;border-radius:2px;color:#555;font-size:calc(1em - 2px);padding:.25em}.markmap-foreign pre{margin:0}.markmap-foreign pre>code{display:block}.markmap-foreign del{text-decoration:line-through}.markmap-foreign em{font-style:italic}.markmap-foreign strong{font-weight:700}.markmap-foreign mark{background:#ffeaa7}";
+    var css_248z$1 = ".markmap{font:300 16px/20px sans-serif}.markmap-link{fill:none}.markmap-node>circle{cursor:pointer}.markmap-foreign{display:inline-block;cursor:pointer}.markmap-foreign a{color:#0097e6}.markmap-foreign a:hover{color:#00a8ff}.markmap-foreign code{background-color:#f0f0f0;border-radius:2px;color:#555;font-size:calc(1em - 2px);padding:.25em}.markmap-foreign pre{margin:0}.markmap-foreign pre>code{display:block}.markmap-foreign del{text-decoration:line-through}.markmap-foreign em{font-style:italic}.markmap-foreign strong{font-weight:700}.markmap-foreign mark{background:#ffeaa7}";
     
     var css_248z = ".markmap-container{height:0;left:-100px;overflow:hidden;position:absolute;top:-100px;width:0}.markmap-container>.markmap-foreign{display:inline-block}.markmap-container>.markmap-foreign>div:last-child,.markmap-container>.markmap-foreign>div:last-child *{white-space:nowrap}";
     
@@ -196,8 +196,14 @@
           await this.toggleNode(d.data, recursive);
         };
 
-        this.handleTextClick = async (e, d) =>  {
-          const postData = {data:d.data.content, line:d.data.state.line, file:d.data.state.file}
+        this.handleTextClick = async (e, d) => {
+          const file = d.data.state?.file || d.data.file;
+          const line = d.data.state?.line || d.data.line;
+          const postData = {
+            data: d.data.content,
+            line: line,
+            file: file
+          };
           await this.postFileInfo(postData);
           e.preventDefault();
           e.stopImmediatePropagation();
@@ -241,11 +247,11 @@
       async fetchRandom(data)  {
             const hashrand = await this.getTagsData(data.content);
             data.children = [];
-            hashrand.forEach(element=>  {
+            (hashrand || []).forEach(element => {
                 var data$childObj = {
-                  content: element.name,
-                  file:element.file,
-                  line:element.line,
+                  content: element.name || element.symbol || element.content,
+                  file: element.file,
+                  line: element.line,
                   children: [
                     {content: "N",
                     isNull: true}
@@ -467,7 +473,7 @@
         });
 
         const foreignObject = nodeMerge.selectAll(childSelector('foreignObject')).data(d => [d], d => d.data.state.key).join(enter => {
-          const fo = enter.append('foreignObject').attr('class', 'markmap-foreign').attr('x', paddingX).attr('y', 0).style('opacity', 0.2).on('mousedown', stopPropagation).on('dblclick', (e, d) => this.handleTextClick(e, d));
+          const fo = enter.append('foreignObject').attr('class', 'markmap-foreign').attr('x', paddingX).attr('y', 0).style('opacity', 0.2).on('mousedown', stopPropagation).on('click', (e, d) => this.handleTextClick(e, d)).on('dblclick', (e, d) => this.handleTextClick(e, d));
           fo.append('xhtml:div').select(function select(d) {
             let clone = d.data.state.el.cloneNode(true);
             this.replaceWith(clone);

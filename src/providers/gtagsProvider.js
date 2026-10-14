@@ -195,10 +195,7 @@ class GtagsProvider {
     }
 
     async getCallers(workspaceRoot, symbol) {
-        if (!await this._isFunctionSymbol(workspaceRoot, symbol)) {
-            const target = symbol.trim();
-            throw new Error(`${target} is not a function`);
-        }
+        if (!symbol || !symbol.trim()) return [];
 
         const target = symbol.trim();
         const cacheKey = `${workspaceRoot}:${target}`;
@@ -230,6 +227,7 @@ class GtagsProvider {
     }
 
     async _getEnclosingCaller(workspaceRoot, caller) {
+        const fullPath = path.isAbsolute(caller.file) ? caller.file : path.join(workspaceRoot, caller.file);
         const functions = await this._getFunctionsInFile(workspaceRoot, caller.file);
         const enclosing = functions
             .filter(func => func.startLine <= caller.line && func.endLine >= caller.line)
@@ -237,9 +235,19 @@ class GtagsProvider {
                 (left.endLine - left.startLine) - (right.endLine - right.startLine)
             )[0];
 
-        return enclosing
-            ? { name: enclosing.symbol, file: caller.file, line: enclosing.line }
-            : null;
+        if (enclosing) {
+            return { name: enclosing.symbol, file: fullPath, line: enclosing.line };
+        }
+
+        const preceding = functions
+            .filter(func => (func.startLine || func.line) <= caller.line)
+            .sort((a, b) => (b.startLine || b.line) - (a.startLine || a.line))[0];
+
+        if (preceding) {
+            return { name: preceding.symbol, file: fullPath, line: preceding.line || preceding.startLine };
+        }
+
+        return { name: caller.symbol, file: fullPath, line: caller.line };
     }
 
     _filterUniqueCallers(callers, symbol) {

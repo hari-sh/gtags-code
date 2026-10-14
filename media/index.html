@@ -328,6 +328,8 @@
       });
     }
 
+    window.getTags = getTags;
+
     window.postFileData = function (tagData) {
       vscode.postMessage({
         type: 'postFileInfo',
@@ -371,7 +373,7 @@
       if (mode === 'callers') {
         item.mm = window.markmap.Markmap.create(
           `svg#mindmap-${item.id}`,
-          window.getTags,
+          getTags,
           window.postFileData,
           item.name
         );
@@ -481,19 +483,33 @@
     function renderContent() {
       const activeItem = items.find(p => p.id === activeId);
 
-      if (!activeItem) {
-        const emptyStateEl = plotContainerEl.querySelector(':scope > .empty-state');
-        if (emptyStateEl) emptyStateEl.style.display = 'flex';
-        return;
-      }
-
-      const emptyStateEl = plotContainerEl.querySelector(':scope > .empty-state');
-      if (emptyStateEl) emptyStateEl.style.display = 'none';
-
       for (const item of items) {
         if (item.container) {
           item.container.style.display = item.id === activeId ? "block" : "none";
         }
+      }
+
+      let emptyStateEl = plotContainerEl.querySelector(':scope > .empty-state');
+      if (!emptyStateEl) {
+        emptyStateEl = document.createElement('div');
+        emptyStateEl.className = 'empty-state';
+        plotContainerEl.appendChild(emptyStateEl);
+      }
+
+      if (!activeItem) {
+        emptyStateEl.textContent = `Select a symbol to view ${currentSuperTab}`;
+        emptyStateEl.style.display = 'flex';
+        return;
+      }
+
+      emptyStateEl.style.display = 'none';
+
+      if (activeItem.mode === 'callers' && activeItem.mm) {
+        setTimeout(() => {
+          if (typeof activeItem.mm.fit === 'function') {
+            activeItem.mm.fit();
+          }
+        }, 50);
       }
     }
 
