@@ -14,18 +14,45 @@ async function getlno(entry) {
 }
 
 async function openAndReveal(context, editor, document, sel) {
-    const doc = await vscode.workspace.openTextDocument(document);
+    if (!document) return;
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath;
+    let fullPath = document;
+    if (!path.isAbsolute(fullPath) && workspaceFolder) {
+        fullPath = path.join(workspaceFolder, fullPath);
+    }
+    const doc = await vscode.workspace.openTextDocument(fullPath);
+    const targetEditor = editor || vscode.window.activeTextEditor || vscode.window.visibleTextEditors[0];
+    const viewColumn = targetEditor && targetEditor.viewColumn ? targetEditor.viewColumn : vscode.ViewColumn.One;
     const showOptions = {
-        viewColumn: editor ? editor.viewColumn : vscode.ViewColumn.One,
+        viewColumn,
+        preserveFocus: false,
+        preview: true,
         selection: sel
     };
-    return await vscode.window.showTextDocument(doc, showOptions);
+    const textEditor = await vscode.window.showTextDocument(doc, showOptions);
+    if (sel && textEditor) {
+        textEditor.revealRange(sel, vscode.TextEditorRevealType.InCenter);
+    }
+    return textEditor;
 }
 
-async function revealInCode(context, editor, entry) {
+async function revealInCode(context, editor, entry, provider) {
     if (!entry) return;
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath;
+
+    let targetFile = entry.file;
+    if (targetFile && !path.isAbsolute(targetFile) && workspaceFolder) {
+        targetFile = path.join(workspaceFolder, targetFile);
+    }
+
+    if (!targetFile && entry.data && provider) {
+        return jumputil(editor, context, entry.data, provider);
+    }
+
+    if (!targetFile) return;
+
     const sel = await getlno(entry);
-    return openAndReveal(context, editor, entry.file, sel);
+    return openAndReveal(context, editor, targetFile, sel);
 }
 
 function getTag(editor) {

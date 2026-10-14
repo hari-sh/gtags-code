@@ -75,7 +75,14 @@ class TagsCodeViewProvider {
         this.pendingTabs = [];
       } else if (msg.type === 'postFileInfo') {
         const { revealInCode } = require('./navigate');
-        await revealInCode(this.context, vscode.window.activeTextEditor, msg.data);
+        try {
+          await revealInCode(this.context, vscode.window.activeTextEditor, msg.data, this.tagsProvider);
+        } catch (err) {
+          console.error('gtags-code: Failed to reveal location in code:', err);
+          if (this.tagsProvider && this.tagsProvider.channel) {
+            this.tagsProvider.channel.appendLine(`[Error] Failed to open location: ${err.message}`);
+          }
+        }
       }
     });
   }
