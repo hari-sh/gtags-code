@@ -13,14 +13,20 @@ const providerConfig = {
   engine: config.get('engine') || 'gtags',
   globalCmd: config.get('globalCmd') || 'global',
   gtagsCmd: config.get('gtagsCmd') || 'gtags',
-  externalCommand: config.get('externalCommand') || '',
-  externalArgs: config.get('externalArgs') || [],
-  externalIndexCommand: config.get('externalIndexCommand') || '',
-  externalIndexArgs: config.get('externalIndexArgs') || [],
-  externalEnv: config.get('externalEnv') || {}
+  externalCommand: config.get('external.command') || '',
+  externalArgs: config.get('external.args') || [],
+  externalTools: {
+    index: config.get('external.index') || '',
+    'jump-to-definition': config.get('external.jump-to-definition') || '',
+    'search-symbols': config.get('external.search-symbols') || '',
+    'get-ref': config.get('external.get-ref') || '',
+    'get-callers': config.get('external.get-callers') || ''
+  }
 };
 
 const tagsProvider = TagsProviderFactory.create(providerConfig, channel);
+
+
 
 async function storeTags() {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -99,10 +105,10 @@ module.exports = {
     context.subscriptions.push(vscode.commands.registerCommand('extension.searchTags', searchTags));
     context.subscriptions.push(vscode.commands.registerCommand('extension.jumpTag', goToDefinition));
     context.subscriptions.push(vscode.commands.registerCommand('extension.getReferences', () => getReferences(context, tagsCodePanelProvider)));
-    
+
     tagsCodePanelProvider = new TagsCodeViewProvider(context, tagsProvider);
     context.subscriptions.push(vscode.commands.registerCommand('extension.getCallers', () => getCallers(context, tagsCodePanelProvider)));
-    
+
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider('gtags.panelView', tagsCodePanelProvider, {
         webviewOptions: {
