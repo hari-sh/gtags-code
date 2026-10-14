@@ -5,8 +5,7 @@ const path = require('path');
 const targets = [
   'darwin-x64+arm64',
   'linux-x64',
-  'win32-x64',
-  'win32-ia32'
+  'win32-x64'
 ];
 
 for (const target of targets) {

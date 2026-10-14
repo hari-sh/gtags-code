@@ -274,11 +274,17 @@
     const pending = new Map();
     let currentSuperTab = 'callers';
 
+    function switchSuperTab(mode) {
+      document.querySelectorAll('.super-tab').forEach(t => t.classList.remove('active'));
+      const target = document.querySelector(`.super-tab[data-mode="${mode}"]`);
+      if (target) target.classList.add('active');
+      currentSuperTab = mode;
+    }
+
     document.querySelectorAll('.super-tab').forEach(el => {
       el.addEventListener('click', e => {
-        document.querySelectorAll('.super-tab').forEach(t => t.classList.remove('active'));
-        el.classList.add('active');
-        currentSuperTab = el.dataset.mode;
+        if (currentSuperTab === el.dataset.mode) return;
+        switchSuperTab(el.dataset.mode);
 
         activeId = lastActiveId[currentSuperTab];
         const visibleItems = items.filter(i => i.mode === currentSuperTab);
@@ -358,10 +364,9 @@
       items.push(item);
 
       if (currentSuperTab !== mode) {
-        document.querySelector(`.super-tab[data-mode="${mode}"]`).click();
-      } else {
-        selectItem(item.id);
+        switchSuperTab(mode);
       }
+      selectItem(item.id);
 
       if (mode === 'callers') {
         item.mm = window.markmap.Markmap.create(
