@@ -22,6 +22,8 @@ esbuild.build({
   entryPoints: ['src/main.js'],
   bundle: true,
   minify: true,
+  treeShaking: true,
+  legalComments: 'none',
   sourcemap: false,
   platform: 'node',
   format: 'cjs',
