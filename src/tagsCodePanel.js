@@ -13,25 +13,28 @@ class TagsCodeViewProvider {
 
   resolveWebviewView(webviewView, context, token) {
     this.webviewView = webviewView;
+    const mediaDir = fs.existsSync(path.join(this.context.extensionPath, 'dist', 'media'))
+      ? path.join(this.context.extensionPath, 'dist', 'media')
+      : path.join(this.context.extensionPath, 'media');
+
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [
-        vscode.Uri.file(path.join(this.context.extensionPath, 'media'))
+        vscode.Uri.file(mediaDir)
       ]
     };
 
-    const htmlPath = path.join(this.context.extensionPath, 'media', 'index.html');
+    const htmlPath = path.join(mediaDir, 'index.html');
     let html = fs.readFileSync(htmlPath, 'utf8');
 
     const mediaPath = webviewView.webview.asWebviewUri(
-      vscode.Uri.file(path.join(this.context.extensionPath, 'media'))
+      vscode.Uri.file(mediaDir)
     );
 
     html = html
       .replace(/href="treeview.css"/g, `href="${mediaPath}/treeview.css"`)
       .replace(/src="treeview.js"/g, `src="${mediaPath}/treeview.js"`)
-      .replace(/src="d3.js"/g, `src="${mediaPath}/d3.js"`)
-      .replace(/src="d3-flextree.js"/g, `src="${mediaPath}/d3-flextree.js"`);
+      .replace(/src="d3.js"/g, `src="${mediaPath}/d3.js"`);
 
     webviewView.webview.html = html;
 

@@ -1,6 +1,11 @@
 # Ignore dev dependencies
 node_modules/**
-!node_modules/node-gyp-build/**
+!node_modules/node-gyp-build/index.js
+!node_modules/node-gyp-build/node-gyp-build.js
+!node_modules/node-gyp-build/package.json
+
+# Ignore raw media sources (minified into dist/media)
+media/**
 
 # Ignore config, build files
 .vscode/
